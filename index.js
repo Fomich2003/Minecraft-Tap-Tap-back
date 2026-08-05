@@ -9,6 +9,8 @@ import userRouter from "./src/routes/user.route.js";
 import launchBot from "./src/bot/bot.js";
 import connectDB from "./src/utils/connectDB.js";
 
+import { SERVER_CONF } from "./src/config/server.config.js";
+
 const app = express();
 
 const __filename = fileURLToPath(import.meta.url);
@@ -31,7 +33,10 @@ app.use("/api/user", userRouter);
 
 // База і бот 
 connectDB();
-launchBot();
+
+if (SERVER_CONF.mode === "production") {
+  launchBot();
+}
 
 app.listen(process.env.PORT, () => {
   console.log(`App is running on port ${process.env.PORT}`);
