@@ -10,11 +10,11 @@ class UserRepository {
   }
 
   async findByTelegramId(id) {
-    return await UserModel.findOne({ telegramId: id }).populate("tapBlocks", "slug type canTap");
+    return await UserModel.findOne({ telegramId: id }).populate("tapBlocks", "slug type canTap icon price name");
   }
 
   async findById(id) {
-    return await UserModel.findById(id);
+    return await UserModel.findById(id).populate("tapBlocks", "slug type canTap icon price name");
   }
 
   async create(user) {
@@ -68,6 +68,7 @@ class UserRepository {
 
 
   async addTapBlock(id, blockId) {
+    console.log("[addTapBlock]", id, blockId)
     return await UserModel.findByIdAndUpdate(
       id,
       { $addToSet: { tapBlocks: blockId } },
@@ -76,6 +77,25 @@ class UserRepository {
         runValidators: true
       }
     );
+  }
+
+  async claimAward(userId) {
+
+    return await UserModel.findByIdAndUpdate(
+      userId,
+      {
+        $inc: {
+          balance: 500
+        },
+        $set: {
+          lastAwardTime: new Date()
+        }
+      },
+      {
+        new: true,          // повертає вже оновлений документ
+        runValidators: true // валідація по схемі
+      }
+    )
   }
 
 }

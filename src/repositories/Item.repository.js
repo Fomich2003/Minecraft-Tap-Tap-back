@@ -13,9 +13,15 @@ class ItemRepository {
         return await ItemModel.findOne({ slug });
     }
 
-   async  findAllBlocks() {
-      return await ItemModel.find({ type: "block"})
-   }
+    async findAllBlocks() {
+        return await ItemModel.find({ type: "block" })
+    }
+
+    async getFirst() {
+        return await ItemModel.findOne({ type: "block", isFirst: true })
+    }
+
+    
 }
 
 const Item = new ItemRepository();

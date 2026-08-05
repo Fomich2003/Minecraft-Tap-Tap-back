@@ -1,22 +1,20 @@
 import blockService from "../services/block.service.js";
 
-async function tapBlock(req, res) {
+async function addTaps(req, res) {
   try {
 
     if (!req.body) return res.status(400).json({ success: false, message: "Body is invalid" });
 
-    // Витягуємо з тіла запиту telegramId та slug предмета
-    const { telegramId, slug } = req.body;
+    if (!req.user) return res.status(400).json({ success: false, message: "User is invalid" });
 
-    // Перевірка наявності telegramId
-    if (!telegramId)
-      return res.status(400).json({ success: false, message: "TelegramId invalid" });
+    // Витягуємо з тіла запиту telegramId та slug предмета
+    const { slug, count } = req.body;
 
     // Перевірка наявності slug предмета
     if (!slug)
       return res.status(400).json({ success: false, message: "Slug invalid" });
 
-    const result = await blockService.tapBlock(telegramId, slug)
+    const result = await blockService.addTaps(req.user._id, slug, count)
 
     // Повертаємо успішну відповідь з повідомленням
     return res.status(result.status).json(result);
@@ -85,4 +83,44 @@ async function getBlockBySlug(req, res) {
   }
 }
 
-export { tapBlock, buyBlock, getAllBlocks, getBlockBySlug };
+async function getFirst(req, res) {
+  try {
+
+    if (!req.user) return res.status(400).json({ success: false, message: "User is invalid" });
+
+
+
+    const result = await blockService.getFirst(req.user._id)
+    console.log("[getFirst]", result)
+    // Повертаємо успішну відповідь з повідомленням
+    return res.status(result.status).json(result);
+
+  } catch (error) {
+    // Виводимо помилку в консоль і повертаємо 500 статус сервера
+    console.error(error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+}
+
+async function getUserBlocks(req, res) {
+  try {
+
+    if (!req.user) return res.status(400).json({ success: false, message: "User is invalid" });
+
+
+
+    const result = await blockService.getUserBlocks(req.user._id)
+
+    // Повертаємо успішну відповідь з повідомленням
+    return res.status(result.status).json(result);
+
+  } catch (error) {
+    // Виводимо помилку в консоль і повертаємо 500 статус сервера
+    console.error(error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+}
+
+
+
+export { addTaps, buyBlock, getAllBlocks, getBlockBySlug, getFirst, getUserBlocks };

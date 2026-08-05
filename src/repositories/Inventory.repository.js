@@ -74,7 +74,7 @@ class InventoryRepository {
 }
 
 // Створюємо єдиний екземпляр репозиторію
-const Inventory = new InventoryRepository();
+const   Inventory = new InventoryRepository();
 
 // Експортуємо для використання в інших файлах
 export default Inventory;

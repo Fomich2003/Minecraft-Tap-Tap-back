@@ -24,3 +24,4 @@ const InventorySchema = new mongoose.Schema({
 }, { timestamps: true });
 
 export default mongoose.model("Inventory", InventorySchema);
+

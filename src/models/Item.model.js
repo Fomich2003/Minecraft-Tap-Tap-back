@@ -46,6 +46,10 @@ const ItemSchema = new mongoose.Schema({
   price: {
     type: Number,
     default: 0
+  },
+  isFirst: {
+    type: Boolean,
+    default: false
   }
 }, { timestamps: true });
 
