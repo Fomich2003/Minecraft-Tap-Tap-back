@@ -82,6 +82,16 @@ class BlockService {
         }
     }
 
+    async getBlocksToTap() {
+        try {
+            const blocks = await Item.findBlocksToTap();
+            if (!Array.isArray(blocks) || blocks.length === 0) return { success: false, status: 404 }
+            return { success: true, blocks, status: 200 };
+        } catch (error) {
+            throw error;
+        }
+    }
+
     // Повертає блок за slug
     async getBlockBySlug(slug) {
         try {

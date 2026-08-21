@@ -66,6 +66,17 @@ async function getAllBlocks(req, res) {
   }
 }
 
+// GET /api/block/all-taps
+async function getBlocksToTap(req, res) {
+  try {
+    const result = await blockService.getBlocksToTap();
+    res.status(result.status).json(result);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+}
+
 // GET /api/block/:slug
 async function getBlockBySlug(req, res) {
   try {
@@ -123,4 +134,4 @@ async function getUserBlocks(req, res) {
 
 
 
-export { addTaps, buyBlock, getAllBlocks, getBlockBySlug, getFirst, getUserBlocks };
+export { addTaps, buyBlock, getAllBlocks, getBlockBySlug, getFirst, getUserBlocks, getBlocksToTap };

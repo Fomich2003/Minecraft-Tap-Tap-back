@@ -17,11 +17,15 @@ class ItemRepository {
         return await ItemModel.find({ type: "block" })
     }
 
+    async findBlocksToTap() {
+        return await ItemModel.find({ type: "block", canTap: true })
+    }
+
     async getFirst() {
         return await ItemModel.findOne({ type: "block", isFirst: true })
     }
 
-    
+
 }
 
 const Item = new ItemRepository();
