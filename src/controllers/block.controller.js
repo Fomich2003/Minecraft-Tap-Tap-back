@@ -28,32 +28,30 @@ async function addTaps(req, res) {
 
 async function buyBlock(req, res) {
   try {
-
     if (!req.body) return res.status(400).json({ success: false, message: "Body is invalid" });
 
-    // Витягуємо з тіла запиту telegramId та slug предмета
-    const { telegramId, slug } = req.body;
+    // Витягуємо з тіла запиту slug предмета
+    const { slug } = req.body;
+    const userId = req.user._id;
 
-    // Перевірка наявності telegramId
-    if (!telegramId)
-      return res.status(400).json({ success: false, message: "TelegramId invalid" });
+    // Перевірка наявності userId
+    if (!userId)
+      return res.status(400).json({ success: false, message: "UserId invalid" });
 
     // Перевірка наявності slug предмета
     if (!slug)
       return res.status(400).json({ success: false, message: "Slug invalid" });
 
-    const result = await blockService.buyBlock(slug, telegramId)
+    const result = await blockService.buyBlock(slug, userId, req.tgUser);
 
     // Повертаємо успішну відповідь з повідомленням
     return res.status(result.status).json(result);
-
   } catch (error) {
     // Виводимо помилку в консоль і повертаємо 500 статус сервера
     console.error(error);
     res.status(500).json({ success: false, message: error.message });
   }
 }
-
 // GET /api/block/all
 async function getAllBlocks(req, res) {
   try {

@@ -8,7 +8,7 @@ const blockRouter = express.Router();
 blockRouter.post("/tap", checkTgProfile, addTaps);
 
 // /api/block/buy
-blockRouter.post("/buy", buyBlock);
+blockRouter.post("/buy", checkTgProfile, buyBlock);
 
 // /api/block/all
 blockRouter.get("/all", getAllBlocks);
@@ -26,8 +26,3 @@ blockRouter.post("/get-first", checkTgProfile, getFirst);
 blockRouter.post("/get-userblocks", checkTgProfile, getUserBlocks);
 
 export default blockRouter;
-
-
-
-
-

@@ -42,7 +42,7 @@ async function getUserProfile(req, res) {
         const tgUser = req.tgUser
         if (!tgUser) return res.status(400).json({ success: false, message: "TgUser is invalid" });
         const tgUserId = tgUser.user.id
-        let resultUser = await userService.getUserByTelegramId(tgUserId)
+        let resultUser = await userService.getFullUserInfoByTG(tgUser)
         if (!resultUser.success && resultUser.status === 404) {
             resultUser = await userService.createUser({ telegramId: tgUserId, username: tgUser.user.username });
 
@@ -53,6 +53,7 @@ async function getUserProfile(req, res) {
                 return res.status(500).json({ success: false, message: `${resultUser.message}, ${resultInventory.message}` });
             }
         }
+        console.log("User._IDXD", resultUser.user)
         const exInventory = await inventoryService.getInventory(resultUser.user._id)
         resultUser.user.photo = tgUser.user.photo_url
         const user = resultUser.user.toObject

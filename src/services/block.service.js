@@ -2,6 +2,7 @@ import User from "../repositories/User.repository.js";
 import Inventory from "../repositories/Inventory.repository.js";
 import Item from "../repositories/Item.repository.js";
 import { getRandomDropItems } from "../utils/random.js";
+import userService from "./user.service.js";
 
 class BlockService {
     async addTaps(userId, slug, count) {
@@ -39,36 +40,35 @@ class BlockService {
             throw error
         }
     }
-
-    async buyBlock(slug, telegramId) {
+    async buyBlock(slug, userId, tgUser) {
         try {
             // Шукаємо користувача за telegramId
-            let user = await User.findByTelegramId(telegramId);
+            let user = await User.findById(userId);
             console.log(user)
             // Якщо користувача не знайдено — повертаємо 404
             if (!user) return { success: false, message: "User not found", status: 404 };
 
             const blockToBuy = await Item.findBySlug(slug)
             console.log(blockToBuy)
-            if (!blockToBuy || !blockToBuy.canTap || blockToBuy.type !== "block") return { success: false, message: "Block is not defined", status: 400 };
+            if (!blockToBuy || !blockToBuy.canTap || blockToBuy.type !== "block") return { success: false, message: "...", status: /* не показано повністю */ 400 };
 
             const userHasBlock = user.tapBlocks.find(block => block.slug === slug)
             console.log(userHasBlock)
-            if (userHasBlock) return { success: false, message: "User already has block", status: 400 };
+            if (userHasBlock) return { success: false, message: "User already has block", status: /* не показано */ 400 };
 
-            if (user.balance < blockToBuy.price) return { success: false, message: "You don`t have money", status: 400 };
+            if (user.balance < blockToBuy.price) return { success: false, message: "You don't have enough balance", status: /* не показано */ 400 };
 
             user = await User.addTapBlock(user._id, blockToBuy._id)
 
             user = await User.decrementBalance(user._id, blockToBuy.price)
 
-            return { success: true, status: 200, block: blockToBuy, message: "Successfull" }
+            const updatedUser = await userService.getFullUserInfoByTG(tgUser)
+
+            return { success: true, status: 200, block: blockToBuy, user: updatedUser, message: "Successfull" }
 
         } catch (error) {
             throw error
         }
-
-
     }
 
     // Повертає всі блоки

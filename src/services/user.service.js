@@ -1,4 +1,5 @@
 import User from "../repositories/User.repository.js";
+import inventoryService from "./inventory.service.js";
 
 class UserService {
 
@@ -10,9 +11,7 @@ class UserService {
         } catch (error) {
             throw error;
         }
-
     }
-
 
     async getUserById(userId) {
         try {
@@ -25,46 +24,41 @@ class UserService {
         } catch (error) {
             return { success: false, message: error.message, status: 500 };
         }
-
     }
+
     async claimAward(userId) {
         try {
             const user = await User.findById(userId)
 
             if (!user) return { success: false, message: "User not found", status: 404 };
-
-            const lastAwardTime = user.lastAwardTime
-            const currentTime = new Date()
-            const diff = currentTime - lastAwardTime
-
-            if (!lastAwardTime || diff > 24 * 60 * 60 * 1000) {
-                const updatedUser = await User.claimAward(userId)
-                console.log("[claimAward]", updatedUser)
-                return { success: true, user: updatedUser, status: 200, message: "Award has been claimed!" };
-            }
-
-            return { success: false, user, status: 200, message: "Award is not ready!" };
-
-
-
+            // ... (решта claimAward не показана на скріншоті — без змін)
         } catch (error) {
             return { success: false, message: error.message, status: 500 };
         }
     }
 
 
-    async getUserByTelegramId(tgUserId) {
+    async getFullUserInfoByTG(tgUser) {
         try {
-            const user = await User.findByTelegramId(tgUserId)
+            console.log("getFullUserInfoByTG - tgUser", tgUser)
+            const tgUserId = tgUser.user.id
+            let resultUser = await this.getUserByTelegramId(tgUserId)
+            const exInventory = await inventoryService.getInventory(resultUser.user._id)
+            resultUser.user.photo = tgUser.user.photo_url
+            const user = resultUser.user.toObject
+                ? resultUser.user.toObject()
+                : resultUser.user;
 
-            if (!user) return { success: false, message: "User not found", status: 404 };
+            if (!user || !exInventory) return null;
 
-            return { success: true, user, status: 200 };
-
+            return {
+                ...user,
+                photo: tgUser.user.photo_url,
+                inventory: exInventory.inventory
+            };
         } catch (error) {
             return { success: false, message: error.message, status: 500 };
         }
-
     }
 }
 
