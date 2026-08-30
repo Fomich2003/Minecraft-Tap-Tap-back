@@ -1,4 +1,4 @@
-import UserModel from "../models/User.model.js";
+ import UserModel from "../models/User.model.js";
 
 class UserRepository {
   async findAll() {
@@ -10,93 +10,96 @@ class UserRepository {
   }
 
   async findByTelegramId(id) {
-    return await UserModel.findOne({ telegramId: id }).populate("tapBlocks", "slug type canTap icon price name");
+    return await UserModel.findOne({ telegramId: id })
+      .populate("tapBlocks", "slug type canTap icon price name")
+      .lean();
   }
+
 
   async findById(id) {
-    return await UserModel.findById(id).populate("tapBlocks", "slug type canTap icon price name");
-  }
+  return await UserModel.findById(id).populate("tapBlocks", "slug type canTap icon price name");
+}
 
   async create(user) {
-    const newUser = new UserModel(user);
-    await newUser.save();
-    return newUser;
-  }
+  const newUser = new UserModel(user);
+  await newUser.save();
+  return newUser;
+}
 
   async incrementBalance(userId, count) {
-    return await UserModel.findByIdAndUpdate(
-      userId,
-      {
-        $inc: {
-          balance: count
-        }
-      },
-      {
-        new: true,          // повертає вже оновлений документ
-        runValidators: true // валідація по схемі
+  return await UserModel.findByIdAndUpdate(
+    userId,
+    {
+      $inc: {
+        balance: count
       }
-    )
-  }
+    },
+    {
+      new: true,          // повертає вже оновлений документ
+      runValidators: true // валідація по схемі
+    }
+  )
+}
 
   async decrementBalance(userId, count) {
-    return await UserModel.findByIdAndUpdate(
-      userId,
-      {
-        $inc: {
-          balance: -count
-        }
-      },
-      {
-        new: true,          // повертає вже оновлений документ
-        runValidators: true // валідація по схемі
+  return await UserModel.findByIdAndUpdate(
+    userId,
+    {
+      $inc: {
+        balance: -count
       }
-    )
-  }
+    },
+    {
+      new: true,          // повертає вже оновлений документ
+      runValidators: true // валідація по схемі
+    }
+  )
+}
 
 
 
   async update(id, data) {
-    return await UserModel.findByIdAndUpdate(
-      id,
-      { $set: data },
-      {
-        new: true,          // повертає вже оновлений документ
-        runValidators: true // валідація по схемі
-      },
-    );
-  }
+  return await UserModel.findByIdAndUpdate(
+    id,
+    { $set: data },
+    {
+      new: true,          // повертає вже оновлений документ
+      runValidators: true // валідація по схемі
+    },
+  );
+}
 
 
   async addTapBlock(id, blockId) {
-    console.log("[addTapBlock]", id, blockId)
-    return await UserModel.findByIdAndUpdate(
-      id,
-      { $addToSet: { tapBlocks: blockId } },
-      {
-        new: true,
-        runValidators: true
-      }
-    );
-  }
+  console.log("[addTapBlock]", id, blockId)
+  return await UserModel.findByIdAndUpdate(
+    id,
+    { $addToSet: { tapBlocks: blockId } },
+    {
+      new: true,
+      runValidators: true
+    }
+  );
+}
 
   async claimAward(userId) {
 
-    return await UserModel.findByIdAndUpdate(
-      userId,
-      {
-        $inc: {
-          balance: 500
-        },
-        $set: {
-          lastAwardTime: new Date()
-        }
+  return await UserModel.findByIdAndUpdate(
+    userId,
+    {
+      $inc: {
+        balance: 500
       },
-      {
-        new: true,          // повертає вже оновлений документ
-        runValidators: true // валідація по схемі
+      $set: {
+        lastAwardTime: new Date()
       }
-    )
-  }
+    },
+    {
+      new: true,          // повертає вже оновлений документ
+      runValidators: true // валідація по схемі
+    }
+  )
+}
 
 }
 

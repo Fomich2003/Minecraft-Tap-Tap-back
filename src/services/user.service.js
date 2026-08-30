@@ -6,8 +6,9 @@ class UserService {
     async createUser(userData) {
         try {
             const user = await User.create(userData);
-            if (!user) return { success: false, message: "User not created", status: 500 };
-            return { success: true, user, status: 201 };
+            const inventory = await inventoryService.createInventory(user._id)
+            if (!user || !inventory) return null
+            return { user, inventory };
         } catch (error) {
             throw error;
         }
@@ -26,12 +27,26 @@ class UserService {
         }
     }
 
-    async claimAward(userId) {
+ async claimAward(userId) {
         try {
             const user = await User.findById(userId)
 
             if (!user) return { success: false, message: "User not found", status: 404 };
-            // ... (решта claimAward не показана на скріншоті — без змін)
+
+            const lastAwardTime = user.lastAwardTime
+            const currentTime = new Date()
+            const diff = currentTime - lastAwardTime
+
+            if (!lastAwardTime || diff > 24 * 60 * 60 * 1000) {
+                const updatedUser = await User.claimAward(userId)
+                console.log("[claimAward]", updatedUser)
+                return { success: true, user: updatedUser, status: 200, message: "Award has been claimed!" };
+            }
+
+            return { success: false, user, status: 200, message: "Award is not ready!" };
+
+
+
         } catch (error) {
             return { success: false, message: error.message, status: 500 };
         }
@@ -40,22 +55,14 @@ class UserService {
 
     async getFullUserInfoByTG(tgUser) {
         try {
-            console.log("getFullUserInfoByTG - tgUser", tgUser)
-            const tgUserId = tgUser.user.id
-            let resultUser = await this.getUserByTelegramId(tgUserId)
-            const exInventory = await inventoryService.getInventory(resultUser.user._id)
-            resultUser.user.photo = tgUser.user.photo_url
-            const user = resultUser.user.toObject
-                ? resultUser.user.toObject()
-                : resultUser.user;
+            const user = await User.findByTelegramId(tgUser.user.id)
+            const inventory = await inventoryService.getInventory(user._id)
 
-            if (!user || !exInventory) return null;
+            if (!user || !inventory) return null;
 
-            return {
-                ...user,
-                photo: tgUser.user.photo_url,
-                inventory: exInventory.inventory
-            };
+            user.photo = tgUser.user.photo_url
+
+            return { user, inventory };
         } catch (error) {
             return { success: false, message: error.message, status: 500 };
         }

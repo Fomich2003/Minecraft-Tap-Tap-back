@@ -1,90 +1,34 @@
 import userService from "../services/user.service.js";
-import inventoryService from "../services/inventory.service.js";
 import has24HoursPassed from "../utils/convertTime.js"
 
-async function registerUser(req, res) {
-    try {
-
-        if (!req.body) return res.status(400).json({ success: false, message: "Body is invalid" });
-
-        const { telegramId, username } = req.body;
-
-        // Перевірка наявності telegramId
-        if (!telegramId)
-            return res.status(400).json({ success: false, message: "TelegramId invalid" });
-
-        // Перевірка наявності username 
-        if (!username)
-            return res.status(400).json({ success: false, message: "Username invalid" });
-
-        //resultUser = { success: true, user, status: 201 }
-        const resultUser = await userService.createUser({ telegramId, username })
-
-        // resultInventory = { success: true, inventory, status: 201 };
-        const resultInventory = await inventoryService.createInventory(resultUser.user._id)
-
-        if (!resultUser.success || !resultInventory.success) {
-            return res.status(500).json({ success: false, message: `${resultUser.message}, ${resultInventory.message}` });
-        }
-
-        return res.status(resultUser.status).json(resultUser);
-
-    } catch (error) {
-        // Виводимо помилку в консоль і повертаємо 500 статус сервера
-        console.error(error);
-        res.status(500).json({ success: false, message: error.message });
-    }
-}
-
 async function getUserProfile(req, res) {
-
     try {
         const tgUser = req.tgUser
+
         if (!tgUser) return res.status(400).json({ success: false, message: "TgUser is invalid" });
-        const tgUserId = tgUser.user.id
-        let resultUser = await userService.getFullUserInfoByTG(tgUser)
-        if (!resultUser.success && resultUser.status === 404) {
-            resultUser = await userService.createUser({ telegramId: tgUserId, username: tgUser.user.username });
 
-            // resultInventory = { success: true, inventory, status: 201 };
-            const resultInventory = await inventoryService.createInventory(resultUser.user._id);
+        let userData = await userService.getFullUserInfoByTG(tgUser)
 
-            if (!resultUser.success || !resultInventory.success) {
-                return res.status(500).json({ success: false, message: `${resultUser.message}, ${resultInventory.message}` });
-            }
+        if (!userData.user) {
+            userData = await userService.createUser({ telegramId: tgUser.user.id, username: tgUser.user.username });
         }
-        console.log("User._IDXD", resultUser.user)
-        const exInventory = await inventoryService.getInventory(resultUser.user._id)
-        resultUser.user.photo = tgUser.user.photo_url
-        const user = resultUser.user.toObject
-            ? resultUser.user.toObject()
-            : resultUser.user;
 
-        console.log({
-            ...resultUser,
-            user: {
-                ...user,
-                photo: tgUser.user.photo_url,
-                inventory: exInventory.inventory
-            }
-        })
+        if (!userData.user) {
+            return res.status(500).json({ success: false, message: `${resultUser.message}` });
+        }
 
-        return res.status(resultUser.status).json({
-            ...resultUser,
-            user: {
-                ...user,
-                photo: tgUser.user.photo_url,
-                inventory: exInventory.inventory
-            },
+        return res.status(200).json({
+            success: true,
+            message: "Data success",
+            ...userData
         });
-
     } catch (error) {
         // Виводимо помилку в консоль і повертаємо 500 статус сервера
         console.error(error);
         res.status(500).json({ success: false, message: error.message });
     }
-
 }
+
 
 async function claimUserAward(req, res) {
 
@@ -103,4 +47,4 @@ async function claimUserAward(req, res) {
     }
 
 }
-export { registerUser, getUserProfile, claimUserAward }
+export { getUserProfile, claimUserAward }

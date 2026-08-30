@@ -54,7 +54,7 @@ class BlockService {
 
             const userHasBlock = user.tapBlocks.find(block => block.slug === slug)
             console.log(userHasBlock)
-            if (userHasBlock) return { success: false, message: "User already has block", status: /* не показано */ 400 };
+            if (userHasBlock) return { success: false, message: "User already has block", status: 400 };
 
             if (user.balance < blockToBuy.price) return { success: false, message: "You don't have enough balance", status: /* не показано */ 400 };
 
@@ -62,9 +62,9 @@ class BlockService {
 
             user = await User.decrementBalance(user._id, blockToBuy.price)
 
-            const updatedUser = await userService.getFullUserInfoByTG(tgUser)
+            const userData = await userService.getFullUserInfoByTG(tgUser)
 
-            return { success: true, status: 200, block: blockToBuy, user: updatedUser, message: "Successfull" }
+            return { success: true, status: 200, block: blockToBuy, user: userData.user, message: "Successfull" }
 
         } catch (error) {
             throw error
