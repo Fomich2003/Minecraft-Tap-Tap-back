@@ -20,6 +20,13 @@ const dryRun = process.argv.includes("--dry-run");
 // Предмети, яких більше немає в грі, переносяться у своїх власників
 const REPLACED_ITEMS = { oak_plank: "oak_planks", chain: "iron_chain" };
 
+// Старий індекс був sparse: рецепти без ключа більше не існують
+async function dropLegacyRecipeIndex() {
+    const collection = mongoose.connection.db.collection("recipes");
+    const indexes = await collection.indexes().catch(() => []);
+    if (indexes.some(index => index.name === "recipeKey_1" && index.sparse)) await collection.dropIndex("recipeKey_1");
+}
+
 async function replaceItems() {
     for (const [oldSlug, newSlug] of Object.entries(REPLACED_ITEMS)) {
         const [oldItem, newItem] = await Promise.all([Item.findOne({ slug: oldSlug }), Item.findOne({ slug: newSlug })]);
@@ -89,6 +96,7 @@ async function main() {
 
     if (!process.env.DB_URL) throw new Error("DB_URL is missing. Add it to server/.env before running this script.");
     await mongoose.connect(process.env.DB_URL, { serverSelectionTimeoutMS: 15000 });
+    await dropLegacyRecipeIndex();
     await Promise.all([Item.init(), Recipe.init(), Station.init(), GameData.init()]);
     await applyCatalog(catalog);
     console.log(`Imported. Items in database: ${await Item.countDocuments()}, recipes: ${await Recipe.countDocuments()}`);
