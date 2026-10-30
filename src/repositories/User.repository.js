@@ -1,4 +1,7 @@
- import UserModel from "../models/User.model.js";
+import UserModel from "../models/User.model.js";
+
+const AWARD_AMOUNT = 500;
+const AWARD_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
 class UserRepository {
   async findAll() {
@@ -15,91 +18,120 @@ class UserRepository {
       .lean();
   }
 
-
   async findById(id) {
-  return await UserModel.findById(id).populate("tapBlocks", "slug type canTap icon price name");
-}
+    return await UserModel.findById(id).populate("tapBlocks", "slug type canTap icon price name");
+  }
 
-  async create(user) {
-  const newUser = new UserModel(user);
-  await newUser.save();
-  return newUser;
-}
+  async upsertFromTelegram(tgUser) {
+    const update = { $setOnInsert: { telegramId: tgUser.id } };
+    const profile = {};
+    if (tgUser.username) profile.username = tgUser.username;
+    if (tgUser.first_name) profile.firstName = tgUser.first_name;
+    if (Object.keys(profile).length) update.$set = profile;
+    const options = { upsert: true, returnDocument: "after", runValidators: true, setDefaultsOnInsert: true };
+    const run = () => UserModel.findOneAndUpdate({ telegramId: tgUser.id }, update, options)
+      .populate("tapBlocks", "slug type canTap icon price name")
+      .lean();
+
+    try {
+      return await run();
+    } catch (error) {
+      // Два паралельні перші входи: один створив документ, другий просто читає його
+      if (error.code !== 11000) throw error;
+      return await run();
+    }
+  }
 
   async incrementBalance(userId, count) {
-  return await UserModel.findByIdAndUpdate(
-    userId,
-    {
-      $inc: {
-        balance: count
+    return await UserModel.findByIdAndUpdate(
+      userId,
+      {
+        $inc: {
+          balance: count
+        }
+      },
+      {
+        new: true,          // повертає вже оновлений документ
+        runValidators: true // валідація по схемі
       }
-    },
-    {
-      new: true,          // повертає вже оновлений документ
-      runValidators: true // валідація по схемі
-    }
-  )
-}
+    )
+  }
 
   async decrementBalance(userId, count) {
-  return await UserModel.findByIdAndUpdate(
-    userId,
-    {
-      $inc: {
-        balance: -count
+    return await UserModel.findByIdAndUpdate(
+      userId,
+      {
+        $inc: {
+          balance: -count
+        }
+      },
+      {
+        new: true,          // повертає вже оновлений документ
+        runValidators: true // валідація по схемі
       }
-    },
-    {
-      new: true,          // повертає вже оновлений документ
-      runValidators: true // валідація по схемі
-    }
-  )
-}
+    )
+  }
 
 
 
   async update(id, data) {
-  return await UserModel.findByIdAndUpdate(
-    id,
-    { $set: data },
-    {
-      new: true,          // повертає вже оновлений документ
-      runValidators: true // валідація по схемі
-    },
-  );
-}
+    return await UserModel.findByIdAndUpdate(
+      id,
+      { $set: data },
+      {
+        new: true,          // повертає вже оновлений документ
+        runValidators: true // валідація по схемі
+      },
+    );
+  }
 
 
   async addTapBlock(id, blockId) {
-  console.log("[addTapBlock]", id, blockId)
-  return await UserModel.findByIdAndUpdate(
-    id,
-    { $addToSet: { tapBlocks: blockId } },
-    {
-      new: true,
-      runValidators: true
-    }
-  );
-}
-
-  async claimAward(userId) {
-
-  return await UserModel.findByIdAndUpdate(
-    userId,
-    {
-      $inc: {
-        balance: 500
-      },
-      $set: {
-        lastAwardTime: new Date()
+    console.log("[addTapBlock]", id, blockId)
+    return await UserModel.findByIdAndUpdate(
+      id,
+      { $addToSet: { tapBlocks: blockId } },
+      {
+        new: true,
+        runValidators: true
       }
-    },
-    {
-      new: true,          // повертає вже оновлений документ
-      runValidators: true // валідація по схемі
-    }
-  )
-}
+    );
+  }
+
+  // Умова в самому запиті не дає забрати нагороду двічі паралельними запитами
+  async claimAward(userId) {
+    const now = new Date();
+    return await UserModel.findOneAndUpdate(
+      {
+        _id: userId,
+        $or: [
+          { lastAwardTime: null },
+          { lastAwardTime: { $lte: new Date(now.getTime() - AWARD_COOLDOWN_MS) } }
+        ]
+      },
+      {
+        $inc: {
+          balance: AWARD_AMOUNT
+        },
+        $set: {
+          lastAwardTime: now
+        }
+      },
+      {
+        new: true,          // повертає вже оновлений документ
+        runValidators: true // валідація по схемі
+      }
+    )
+  }
+
+  // Списує монети і видає блок однією операцією, тому паралельні покупки не йдуть у мінус
+  async purchaseTapBlock(userId, blockId, price) {
+    return await UserModel.findOneAndUpdate(
+      { _id: userId, balance: { $gte: price }, tapBlocks: { $ne: blockId } },
+      { $inc: { balance: -price }, $addToSet: { tapBlocks: blockId } },
+      { new: true, runValidators: true }
+    );
+  }
 
 }
 

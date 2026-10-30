@@ -7,6 +7,11 @@ import userService from "./user.service.js";
 class BlockService {
     async addTaps(userId, slug, count) {
         try {
+            const tapCount = Number(count);
+            if (!Number.isSafeInteger(tapCount) || tapCount < 1) {
+                return { success: false, message: "Tap count is invalid", status: 400 };
+            }
+
             let user = await User.findById(userId);
 
             // Якщо користувача не знайдено — повертаємо 404
@@ -17,12 +22,11 @@ class BlockService {
             // Якщо блока нема то користувач його не купив або по ньому неможна тапати = 400
             if (!blockToTap || !blockToTap.canTap) return { success: false, message: "Block is invalid", status: 400 };
             // збільшує баланс юзера на +1
-            user = await User.incrementBalance(user._id, count)
 
             // Шукаємо предмет у базі за slug по якому тапаэм
             const tapItem = await Item.findBySlug(slug);
             // Перевіряємо, чи існує предмет і чи його можна "тапати"
-            if (!tapItem || !tapItem.canTap || !Array.isArray(tapItem.canDrop) || !tapItem.canDrop.length === 0)
+            if (!tapItem || !tapItem.canTap || !Array.isArray(tapItem.canDrop) || tapItem.canDrop.length === 0)
                 return { success: false, message: "Item can't be tapped", status: 400 };
 
             // Вибираємо дроп за шансом
@@ -30,11 +34,12 @@ class BlockService {
             if (!drop) return { success: false, message: "No drops available", status: 400 };
 
             // Додаємо обраний предмет до інвентаря
+            user = await User.incrementBalance(user._id, tapCount);
             await Inventory.addItem(user._id, drop.itemId, 1);
             const updatedUser = await User.findById(userId)
             console.log(updatedUser)
             return {
-                success: true, message: `+${count} ${drop}`, status: 200, user: updatedUser
+                success: true, message: `+${tapCount} ${drop}`, status: 200, user: updatedUser
             }
         } catch (error) {
             throw error
@@ -43,24 +48,18 @@ class BlockService {
     async buyBlock(slug, userId, tgUser) {
         try {
             // Шукаємо користувача за telegramId
-            let user = await User.findById(userId);
-            console.log(user)
+            const user = await User.findById(userId);
             // Якщо користувача не знайдено — повертаємо 404
             if (!user) return { success: false, message: "User not found", status: 404 };
 
             const blockToBuy = await Item.findBySlug(slug)
-            console.log(blockToBuy)
-            if (!blockToBuy || !blockToBuy.canTap || blockToBuy.type !== "block") return { success: false, message: "...", status: /* не показано повністю */ 400 };
+            if (!blockToBuy || !blockToBuy.canTap) return { success: false, message: "Block can't be bought", status: 400 };
 
             const userHasBlock = user.tapBlocks.find(block => block.slug === slug)
-            console.log(userHasBlock)
             if (userHasBlock) return { success: false, message: "User already has block", status: 400 };
 
-            if (user.balance < blockToBuy.price) return { success: false, message: "You don't have enough balance", status: /* не показано */ 400 };
-
-            user = await User.addTapBlock(user._id, blockToBuy._id)
-
-            user = await User.decrementBalance(user._id, blockToBuy.price)
+            const purchased = await User.purchaseTapBlock(user._id, blockToBuy._id, blockToBuy.price)
+            if (!purchased) return { success: false, message: "You don't have enough balance", status: 400 };
 
             const userData = await userService.getFullUserInfoByTG(tgUser)
 

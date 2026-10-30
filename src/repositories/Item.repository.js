@@ -18,7 +18,7 @@ class ItemRepository {
     }
 
     async findBlocksToTap() {
-        return await ItemModel.find({ type: "block", canTap: true })
+        return await ItemModel.find({ canTap: true })
     }
 
     async getFirst() {

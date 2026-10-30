@@ -6,6 +6,8 @@ import { fileURLToPath } from "url";
 
 import blockRouter from "./src/routes/block.route.js";
 import userRouter from "./src/routes/user.route.js";
+import inventoryRouter from "./src/routes/inventory.route.js";
+
 import launchBot from "./src/bot/bot.js";
 import connectDB from "./src/utils/connectDB.js";
 
@@ -30,6 +32,7 @@ app.get("/", (req, res) => {
 
 app.use("/api/block", blockRouter);
 app.use("/api/user", userRouter);
+app.use("/api/inventory", inventoryRouter);
 
 // База і бот 
 connectDB();

@@ -11,7 +11,7 @@ const InventoryItemSchema = new mongoose.Schema({
     required: true,
     min: 0
   }
-}, { _id: false });
+});
 
 const InventorySchema = new mongoose.Schema({
   userId: {
@@ -21,7 +21,7 @@ const InventorySchema = new mongoose.Schema({
     required: true
   },
   items: [InventoryItemSchema]
-}, { timestamps: true });
+}, { timestamps: true, optimisticConcurrency: true });
 
 export default mongoose.model("Inventory", InventorySchema);
 

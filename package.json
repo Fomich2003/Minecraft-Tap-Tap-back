@@ -5,6 +5,8 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
+    "sync:item-icons": "node src/scripts/sync-item-icons.js",
+    "verify:item-icons": "node src/scripts/verify-item-icons.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
