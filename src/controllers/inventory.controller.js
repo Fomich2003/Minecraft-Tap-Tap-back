@@ -1,5 +1,6 @@
 import userService from "../services/user.service.js";
 import craftingService from "../services/crafting.service.js";
+import shopService from "../services/shop.service.js";
 
 async function getFullUserInventory(req, res) {
     try {
@@ -21,20 +22,21 @@ async function getFullUserInventory(req, res) {
     }
 }
 
-async function getWorkbenchRecipes(req, res) {
+async function getClientCatalog(req, res) {
     try {
-        const recipes = await craftingService.getWorkbenchRecipes()
-        return res.status(200).json({ success: true, recipes })
+        const catalog = await craftingService.getClientCatalog()
+        res.set("Cache-Control", "public, max-age=3600")
+        return res.status(200).json({ success: true, ...catalog })
     } catch (error) {
         console.error(error)
         return res.status(500).json({ success: false, message: error.message })
     }
 }
 
-async function craftWorkbenchItem(req, res) {
+async function buyItem(req, res) {
     try {
         if (!req.user) return res.status(400).json({ success: false, message: "Користувача не знайдено" })
-        const result = await craftingService.craft(req.user._id, req.body?.recipeId, req.body?.items)
+        const result = await shopService.buy(req.user, req.body?.slug, req.body?.quantity)
         return res.status(result.status).json(result)
     } catch (error) {
         console.error(error)
@@ -42,5 +44,15 @@ async function craftWorkbenchItem(req, res) {
     }
 }
 
+async function sellItem(req, res) {
+    try {
+        if (!req.user) return res.status(400).json({ success: false, message: "Користувача не знайдено" })
+        const result = await shopService.sell(req.user, req.body?.stackId, req.body?.quantity)
+        return res.status(result.status).json(result)
+    } catch (error) {
+        console.error(error)
+        return res.status(500).json({ success: false, message: error.message })
+    }
+}
 
-export { getFullUserInventory, getWorkbenchRecipes, craftWorkbenchItem }
+export { getFullUserInventory, getClientCatalog, buyItem, sellItem }

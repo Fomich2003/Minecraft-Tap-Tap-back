@@ -1,24 +1,18 @@
 import InventoryModel from "../models/Inventory.model.js";
-import ItemModel from "../models/Item.model.js";
-import { addInventoryQuantity, removeInventoryQuantity } from "../utils/inventory-stacks.js";
+import { addInventoryQuantity } from "../utils/inventory-stacks.js";
+
+const ITEM_FIELDS = "slug name icon type stackable maxStack maxDurability marketPrice sellPrice buyable";
+const MAX_SAVE_ATTEMPTS = 12;
+
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 class InventoryRepository {
   async findByUserId(userId) {
-    const inventory = await InventoryModel.findOne({ userId }).populate("items.itemId");
-    if (!inventory) return null;
-    let normalized = false;
-    for (const stack of [...inventory.items]) {
-      if (stack.$isDefault?.("_id")) normalized = true;
-      const maxStack = stack.itemId?.stackable === false ? 1 : Math.max(1, Number(stack.itemId?.maxStack) || 64);
-      while (stack.quantity > maxStack) {
-        if (!stack.itemId?._id) break;
-        stack.quantity -= maxStack;
-        inventory.items.push({ itemId: stack.itemId._id, quantity: maxStack });
-        normalized = true;
-      }
-    }
-    if (normalized) await inventory.save();
-    return inventory;
+    return await InventoryModel.findOne({ userId }).populate("items.itemId", ITEM_FIELDS);
+  }
+
+  async findPlainByUserId(userId) {
+    return await InventoryModel.findOne({ userId });
   }
 
   async ensureExists(userId) {
@@ -30,22 +24,31 @@ class InventoryRepository {
     }
   }
 
-  async addItem(userId, itemId, quantity = 1) {
-    const [inventory, item] = await Promise.all([
-      InventoryModel.findOne({ userId }),
-      ItemModel.findById(itemId).select("stackable maxStack")
-    ]);
-    if (!inventory || !item || quantity <= 0) return inventory;
-    addInventoryQuantity(inventory, item, quantity);
-    await inventory.save();
-    return inventory;
+  // Інвентар змінюють паралельні запити, тому зміна повторюється на свіжій версії документа.
+  // mutator повертає { abort: true }, якщо зберігати нічого не треба.
+  async mutate(userId, mutator) {
+    for (let attempt = 0; attempt < MAX_SAVE_ATTEMPTS; attempt += 1) {
+      const inventory = await InventoryModel.findOne({ userId });
+      if (!inventory) return { abort: true, status: 404, message: "Інвентар не знайдено" };
+
+      const result = await mutator(inventory);
+      if (result?.abort) return result;
+
+      try {
+        await inventory.save();
+        return result ?? {};
+      } catch (error) {
+        if (error.name !== "VersionError") throw error;
+        await delay(Math.random() * 25 * (attempt + 1));
+      }
+    }
+    throw new Error("Інвентар зайнятий, спробуй ще раз");
   }
 
-  async removeItem(userId, itemId, quantity = 1) {
-    const inventory = await InventoryModel.findOne({ userId });
-    if (!inventory) return null;
-    if (removeInventoryQuantity(inventory, itemId, quantity)) await inventory.save();
-    return inventory;
+  async addItems(userId, entries) {
+    return await this.mutate(userId, inventory => {
+      for (const { item, quantity, components } of entries) addInventoryQuantity(inventory, item, quantity, components);
+    });
   }
 }
 

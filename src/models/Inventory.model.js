@@ -10,6 +10,13 @@ const InventoryItemSchema = new mongoose.Schema({
     type: Number,
     required: true,
     min: 0
+  },
+  // Властивості конкретного екземпляра: зачарування, міцність, зілля, колір
+  components: mongoose.Schema.Types.Mixed,
+  // Канонічний запис components. Стаки об'єднуються лише за однакового ключа
+  stackKey: {
+    type: String,
+    default: ""
   }
 });
 
@@ -24,4 +31,3 @@ const InventorySchema = new mongoose.Schema({
 }, { timestamps: true, optimisticConcurrency: true });
 
 export default mongoose.model("Inventory", InventorySchema);
-

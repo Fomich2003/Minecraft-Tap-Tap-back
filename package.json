@@ -5,6 +5,10 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js",
+    "import:catalog": "node src/scripts/import-minecraft-catalog.js",
+    "render:icons": "node src/scripts/render-item-icons.js",
     "sync:item-icons": "node src/scripts/sync-item-icons.js",
     "verify:item-icons": "node src/scripts/verify-item-icons.js",
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -14,10 +18,14 @@
   "license": "ISC",
   "dependencies": {
     "@telegram-apps/init-data-node": "^2.0.10",
+    "compression": "^1.8.2",
     "cors": "^2.8.6",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "mongoose": "^9.1.5",
     "telegraf": "^4.16.3"
+  },
+  "devDependencies": {
+    "pngjs": "^7.0.0"
   }
 }

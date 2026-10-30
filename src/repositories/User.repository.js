@@ -74,6 +74,50 @@ class UserRepository {
 
 
 
+  async spendCoins(userId, amount) {
+    return await UserModel.findOneAndUpdate(
+      { _id: userId, balance: { $gte: amount } },
+      { $inc: { balance: -amount } },
+      { new: true }
+    );
+  }
+
+  async purchaseStation(userId, slug, price) {
+    return await UserModel.findOneAndUpdate(
+      { _id: userId, balance: { $gte: price }, stations: { $ne: slug } },
+      { $inc: { balance: -price }, $addToSet: { stations: slug } },
+      { new: true }
+    );
+  }
+
+  async setActiveStation(userId, slug) {
+    return await UserModel.findByIdAndUpdate(userId, { $set: { activeStation: slug } }, { new: true });
+  }
+
+  async bumpEnchantSeed(userId) {
+    return await UserModel.findByIdAndUpdate(userId, { $inc: { enchantSeed: 1 } });
+  }
+
+  async changeBrewingFuel(userId, change) {
+    return await UserModel.findByIdAndUpdate(userId, { $inc: { brewingFuel: change } }, { new: true });
+  }
+
+  async findTapState(userId) {
+    return await UserModel.findById(userId).select("lastTapAt tapTokens tapProgress");
+  }
+
+  // Умова на lastTapAt відкидає запис, якщо паралельний запит встиг змінити лічильники
+  async applyTaps(userId, lastTapAt, { taps, tokens, now, slug, progress }) {
+    return await UserModel.findOneAndUpdate(
+      { _id: userId, lastTapAt },
+      {
+        $inc: { balance: taps },
+        $set: { lastTapAt: now, tapTokens: tokens, [`tapProgress.${slug}`]: progress }
+      },
+      { new: true }
+    );
+  }
+
   async update(id, data) {
     return await UserModel.findByIdAndUpdate(
       id,

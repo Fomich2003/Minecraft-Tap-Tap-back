@@ -3,7 +3,6 @@ import mongoose from "mongoose";
 const StationSchema = new mongoose.Schema({
   slug: {
     type: String,
-    enum: ["workbench", "furnace"],
     unique: true,
     required: true
   },
@@ -11,9 +10,31 @@ const StationSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  gridSize: {
-    type: Number,
+  itemSlug: {
+    type: String,
     required: true
+  },
+  // який інтерфейс показує клієнт
+  uiType: {
+    type: String,
+    enum: ["grid", "cooking", "stonecutter", "smithing", "brewing", "anvil", "grindstone", "enchanting", "loom", "cartography"],
+    required: true
+  },
+  price: {
+    type: Number,
+    default: 0
+  },
+  order: {
+    type: Number,
+    default: 0
+  },
+  isDefault: {
+    type: Boolean,
+    default: false
+  },
+  needsFuel: {
+    type: Boolean,
+    default: false
   }
 }, { timestamps: true });
 

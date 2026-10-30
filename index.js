@@ -1,12 +1,14 @@
 import express from "express";
 import "dotenv/config";
 import cors from "cors";
+import compression from "compression";
 import path from "path";
 import { fileURLToPath } from "url";
 
 import blockRouter from "./src/routes/block.route.js";
 import userRouter from "./src/routes/user.route.js";
 import inventoryRouter from "./src/routes/inventory.route.js";
+import stationRouter from "./src/routes/station.route.js";
 
 import launchBot from "./src/bot/bot.js";
 import connectDB from "./src/utils/connectDB.js";
@@ -19,6 +21,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Middleware
+app.use(compression());
 app.use(express.json());
 app.use(cors());
 
@@ -33,6 +36,7 @@ app.get("/", (req, res) => {
 app.use("/api/block", blockRouter);
 app.use("/api/user", userRouter);
 app.use("/api/inventory", inventoryRouter);
+app.use("/api/station", stationRouter);
 
 // База і бот 
 connectDB();
