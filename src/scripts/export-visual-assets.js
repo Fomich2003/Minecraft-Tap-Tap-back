@@ -12,7 +12,7 @@ const publicDir = path.resolve(scriptDir, "../../../client/public/assets");
 
 // Лицьова сторона полотна в текстурі банера
 const FACE = { x: 1, y: 1, width: 20, height: 40 };
-const TILES = ["stone", "netherrack", "end_stone", "obsidian", "magma"];
+const TILES = ["stone", "netherrack", "end_stone", "obsidian", "magma", "gold_block", "iron_block", "copper_block"];
 
 // Порядок збігається зі списком NAMES у client/src/pages/Tap/worldMap.js. [ім'я або ім'я й файл, відтінок]
 const GRASS_TINT = [124, 189, 107];
