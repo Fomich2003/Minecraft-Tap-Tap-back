@@ -11,7 +11,7 @@ function textsFor(code = "") {
 }
 
 async function startCMD(ctx) {
-    // Кнопка Mini App працює лише в особистому чаті з ботом
+    // Кнопка Mini App працює лише в особистому чаті з бото
     if (ctx.chat?.type !== "private") return;
     try {
         // Збій бази не має лишати гравця без запрошення
