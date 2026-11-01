@@ -31,7 +31,7 @@ export const MOBS = [
     mob("hoglin", "Гоґлін", 14000, 80, [["porkchop", 2, 4, .9], ["leather", 1, 2, .5]]),
     mob("magma_cube", "Магмокуб", 16000, 32, [["magma_cream", 1, 1, .5]]),
     mob("ghast", "Ґаст", 20000, 20, [["ghast_tear", 1, 1, .3], ["gunpowder", 1, 2, .6]]),
-    mob("wither_skeleton", "Візер-скелет", 25000, 40, [["coal", 1, 1, .4], ["bone", 1, 2, .6], ["wither_skeleton_skull", 1, 1, .05]]),
+    mob("wither_skeleton", "Візер-скелет", 25000, 40, [["coal", 1, 1, .4], ["bone", 1, 2, .6], ["nether_wart", 1, 2, .4], ["wither_skeleton_skull", 1, 1, .05]]),
     mob("shulker", "Шалкер", 40000, 60, [["shulker_shell", 1, 1, .4]]),
     boss("wither", "Візер", 4000, 500, {
         cooldownHours: 24, minutes: 5, coins: 1000,

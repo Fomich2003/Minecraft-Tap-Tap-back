@@ -11,6 +11,7 @@
     "build:locales": "node src/scripts/build-locales.js",
     "render:icons": "node src/scripts/render-item-icons.js",
     "export:assets": "node src/scripts/export-visual-assets.js",
+    "copy:icons": "node src/scripts/copy-icons-to-client.js",
     "sync:item-icons": "node src/scripts/sync-item-icons.js",
     "verify:item-icons": "node src/scripts/verify-item-icons.js",
     "test": "echo \"Error: no test specified\" && exit 1"
