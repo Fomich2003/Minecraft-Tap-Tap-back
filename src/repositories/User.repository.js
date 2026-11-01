@@ -1,7 +1,10 @@
 import UserModel from "../models/User.model.js";
 
-const AWARD_AMOUNT = 500;
 const AWARD_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+const TAP_BLOCK_FIELDS = "slug type canTap icon price name tapsToBreak";
+
+// Користувачі, створені до появи покращень, не мають поля tapLevel
+const tapLevelFilter = level => (level ? level : { $in: [0, null] });
 
 class UserRepository {
   async findAll() {
@@ -14,12 +17,12 @@ class UserRepository {
 
   async findByTelegramId(id) {
     return await UserModel.findOne({ telegramId: id })
-      .populate("tapBlocks", "slug type canTap icon price name")
+      .populate("tapBlocks", TAP_BLOCK_FIELDS)
       .lean();
   }
 
   async findById(id) {
-    return await UserModel.findById(id).populate("tapBlocks", "slug type canTap icon price name");
+    return await UserModel.findById(id).populate("tapBlocks", TAP_BLOCK_FIELDS);
   }
 
   async upsertFromTelegram(tgUser) {
@@ -30,7 +33,7 @@ class UserRepository {
     if (Object.keys(profile).length) update.$set = profile;
     const options = { upsert: true, returnDocument: "after", runValidators: true, setDefaultsOnInsert: true };
     const run = () => UserModel.findOneAndUpdate({ telegramId: tgUser.id }, update, options)
-      .populate("tapBlocks", "slug type canTap icon price name")
+      .populate("tapBlocks", TAP_BLOCK_FIELDS)
       .lean();
 
     try {
@@ -74,6 +77,34 @@ class UserRepository {
 
 
 
+  async addBookshelves(userId, count, limit) {
+    return await UserModel.findOneAndUpdate(
+      { _id: userId, bookshelves: { $not: { $gt: limit - count } } },
+      { $inc: { bookshelves: count } },
+      { new: true }
+    );
+  }
+
+  async setKnowledge(userId) {
+    return await UserModel.findByIdAndUpdate(userId, { $set: { knowledge: true } }, { new: true });
+  }
+
+  async setProfileBanner(userId, banner) {
+    return await UserModel.findByIdAndUpdate(userId, { $set: { profileBanner: banner } }, { new: true });
+  }
+
+  async addXp(userId, amount) {
+    return await UserModel.findByIdAndUpdate(userId, { $inc: { xp: amount, xpTotal: amount } }, { new: true });
+  }
+
+  async spendXp(userId, amount) {
+    return await UserModel.findOneAndUpdate({ _id: userId, xp: { $gte: amount } }, { $inc: { xp: -amount } }, { new: true });
+  }
+
+  async refundXp(userId, amount) {
+    return await UserModel.findByIdAndUpdate(userId, { $inc: { xp: amount } }, { new: true });
+  }
+
   async spendCoins(userId, amount) {
     return await UserModel.findOneAndUpdate(
       { _id: userId, balance: { $gte: amount } },
@@ -90,6 +121,35 @@ class UserRepository {
     );
   }
 
+  async purchaseMob(userId, slug, price) {
+    return await UserModel.findOneAndUpdate(
+      { _id: userId, balance: { $gte: price }, mobs: { $ne: slug } },
+      { $inc: { balance: -price }, $addToSet: { mobs: slug } },
+      { new: true }
+    );
+  }
+
+  async summonBoss(userId, slug, progressKey, { now, readyAt, expiresAt }) {
+    return await UserModel.findOneAndUpdate(
+      { _id: userId, $or: [{ [`bosses.${slug}.readyAt`]: null }, { [`bosses.${slug}.readyAt`]: { $lte: now } }] },
+      { $set: { [`bosses.${slug}`]: { active: true, readyAt, expiresAt }, [`tapProgress.${progressKey}`]: 0 } },
+      { new: true }
+    );
+  }
+
+  // Лише перший запит знаходить active: так нагорода за боса не видається двічі
+  async finishBoss(userId, slug) {
+    return await UserModel.findOneAndUpdate(
+      { _id: userId, [`bosses.${slug}.active`]: true },
+      { $set: { [`bosses.${slug}.active`]: false } },
+      { new: true }
+    );
+  }
+
+  async addMobKills(userId, slug, kills) {
+    return await UserModel.updateOne({ _id: userId }, { $inc: { [`mobKills.${slug}`]: kills } });
+  }
+
   async setActiveStation(userId, slug) {
     return await UserModel.findByIdAndUpdate(userId, { $set: { activeStation: slug } }, { new: true });
   }
@@ -102,16 +162,58 @@ class UserRepository {
     return await UserModel.findByIdAndUpdate(userId, { $inc: { brewingFuel: change } }, { new: true });
   }
 
-  async findTapState(userId) {
-    return await UserModel.findById(userId).select("lastTapAt tapTokens tapProgress");
+  async setTool(userId, kind, stackId) {
+    return await UserModel.findByIdAndUpdate(userId, { $set: { [`tools.${kind}`]: stackId } }, { new: true });
   }
 
-  // Умова на lastTapAt відкидає запис, якщо паралельний запит встиг змінити лічильники
-  async applyTaps(userId, lastTapAt, { taps, tokens, now, slug, progress }) {
+  async setEffects(userId, effects) {
+    return await UserModel.findByIdAndUpdate(userId, { $set: { effects } }, { new: true });
+  }
+
+  async setLanguage(userId, language) {
+    return await UserModel.findByIdAndUpdate(userId, { $set: { language } }, { new: true });
+  }
+
+  // Умова на день: паралельні запити не перезапишуть уже розпочату добу
+  async startDaily(userId, day, daily) {
+    return await UserModel.updateOne({ _id: userId, "daily.day": { $ne: day } }, { $set: { daily } });
+  }
+
+  async addQuestProgress(userId, increments) {
+    const $inc = {};
+    for (const [metric, value] of Object.entries(increments)) {
+      $inc[`questStats.${metric}`] = value;
+      $inc[`daily.progress.${metric}`] = value;
+    }
+    return await UserModel.updateOne({ _id: userId }, { $inc });
+  }
+
+  async claimDailyQuest(userId, day, id, progressFilter, coins, xp) {
     return await UserModel.findOneAndUpdate(
-      { _id: userId, lastTapAt },
+      { _id: userId, "daily.day": day, "daily.ids": id, "daily.claimed": { $ne: id }, ...progressFilter },
+      { $addToSet: { "daily.claimed": id }, $inc: { balance: coins, xp, xpTotal: xp, "questStats.dailies": 1 } },
+      { new: true }
+    );
+  }
+
+  async claimPermanentQuest(userId, id, progressFilter, coins, xp) {
+    return await UserModel.findOneAndUpdate(
+      { _id: userId, questsClaimed: { $ne: id }, ...progressFilter },
+      { $addToSet: { questsClaimed: id }, $inc: { balance: coins, xp, xpTotal: xp } },
+      { new: true }
+    );
+  }
+
+  async findTapState(userId) {
+    return await UserModel.findById(userId).select("lastTapAt tapTokens tapProgress tapLevel");
+  }
+
+  // Умови на lastTapAt і tapLevel відкидають запис, якщо паралельний запит встиг змінити лічильники або рівень
+  async applyTaps(userId, lastTapAt, tapLevel, { coins, tokens, now, slug, progress }) {
+    return await UserModel.findOneAndUpdate(
+      { _id: userId, lastTapAt, tapLevel: tapLevelFilter(tapLevel) },
       {
-        $inc: { balance: taps },
+        $inc: { balance: coins },
         $set: { lastTapAt: now, tapTokens: tokens, [`tapProgress.${slug}`]: progress }
       },
       { new: true }
@@ -131,7 +233,6 @@ class UserRepository {
 
 
   async addTapBlock(id, blockId) {
-    console.log("[addTapBlock]", id, blockId)
     return await UserModel.findByIdAndUpdate(
       id,
       { $addToSet: { tapBlocks: blockId } },
@@ -143,7 +244,7 @@ class UserRepository {
   }
 
   // Умова в самому запиті не дає забрати нагороду двічі паралельними запитами
-  async claimAward(userId) {
+  async claimAward(userId, amount) {
     const now = new Date();
     return await UserModel.findOneAndUpdate(
       {
@@ -155,7 +256,7 @@ class UserRepository {
       },
       {
         $inc: {
-          balance: AWARD_AMOUNT
+          balance: amount
         },
         $set: {
           lastAwardTime: now
@@ -166,6 +267,16 @@ class UserRepository {
         runValidators: true // валідація по схемі
       }
     )
+  }
+
+  // Скидання і підвищення рівня відбуваються однією операцією. Умова на рівень не дає
+  // двом паралельним запитам (подвійний клік) купити одне покращення двічі.
+  async purchaseTapUpgrade(userId, level, cost) {
+    return await UserModel.findOneAndUpdate(
+      { _id: userId, tapLevel: tapLevelFilter(level), balance: { $gte: cost } },
+      { $set: { balance: 0, tapLevel: level + 1 } },
+      { new: true, runValidators: true }
+    );
   }
 
   // Списує монети і видає блок однією операцією, тому паралельні покупки не йдуть у мінус

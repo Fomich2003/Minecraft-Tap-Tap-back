@@ -1,7 +1,7 @@
 import InventoryModel from "../models/Inventory.model.js";
 import { addInventoryQuantity } from "../utils/inventory-stacks.js";
 
-const ITEM_FIELDS = "slug name icon type stackable maxStack maxDurability marketPrice sellPrice buyable";
+const ITEM_FIELDS = "slug name icon type stackable maxStack maxDurability marketPrice sellPrice buyable food";
 const MAX_SAVE_ATTEMPTS = 12;
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));

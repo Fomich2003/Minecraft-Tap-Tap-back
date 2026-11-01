@@ -18,7 +18,7 @@ class ItemRepository {
     }
 
     async findBlocksToTap() {
-        return await ItemModel.find({ canTap: true })
+        return await ItemModel.find({ canTap: true }).sort({ price: 1, name: 1 })
     }
 
     async getFirst() {

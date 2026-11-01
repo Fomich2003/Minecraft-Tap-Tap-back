@@ -3,15 +3,19 @@ import Inventory from "../repositories/Inventory.repository.js";
 import User from "../repositories/User.repository.js";
 import { addInventoryQuantity, removeInventoryQuantity } from "../utils/inventory-stacks.js";
 import catalogService from "./catalog.service.js";
+import questService from "./quest.service.js";
 import { hasStation } from "./station.service.js";
 
 const TICK_MS = 50;
 const CAMPFIRE_CAPACITY = 4;
 const BREW_MS = 400 * TICK_MS;
 const BLAZE_POWDER_FUEL = 20;
+const MAX_BOTTLES = 3;
+const EMPTY_BOTTLE = "glass_bottle";
+const WATER = { potion: "water" };
 const FUEL_REMAINDERS = { lava_bucket: "bucket" };
 
-const fail = (status, message) => ({ success: false, status, message });
+const fail = (status, message, params) => ({ success: false, status, message, params });
 
 function stackAt(inventory, stackId, catalog) {
     const stack = stackId ? inventory.items.id(String(stackId)) : null;
@@ -80,7 +84,7 @@ class JobService {
         const wanted = Number(requestedQuantity);
         if (!Number.isSafeInteger(wanted) || wanted < 1) return fail(400, "Некоректна кількість");
         const capacity = slug === "campfire" ? CAMPFIRE_CAPACITY : 64;
-        if (wanted > capacity) return fail(400, `Можна завантажити максимум ${capacity}`);
+        if (wanted > capacity) return fail(400, "Можна завантажити максимум {count}", { count: capacity });
 
         let job = null;
         const outcome = await Inventory.mutate(user._id, inventory => {
@@ -128,7 +132,7 @@ class JobService {
             const bottle = stackAt(inventory, slotIds?.bottle, catalog);
             if (!reagent || !bottle) return { abort: true, status: 400, message: "Поклади пляшечки й інгредієнт" };
 
-            const count = Math.min(3, Math.max(1, Number(slotIds?.bottleCount) || 1));
+            const count = Math.min(MAX_BOTTLES, Math.max(1, Number(slotIds?.bottleCount) || 1));
             const potion = bottle.components?.potion;
             const recipe = (catalog.recipesByStation.get(slug) ?? []).find(candidate =>
                 candidate.brewing.item === bottle.item.slug && candidate.brewing.potion === potion && candidate.brewing.reagent === reagent.item.slug);
@@ -161,6 +165,25 @@ class JobService {
         return await this.saveJob(user, job, catalog);
     }
 
+    // Вода безплатна, як у грі. Стійка вміщує три пляшечки, тому й наповнюється три за раз
+    async fillBottles(user, slug, slotIds, requestedCount) {
+        const { error, catalog } = await this.stationContext(user, slug, ["brewing"]);
+        if (error) return error;
+        const count = Number(requestedCount);
+        if (!Number.isSafeInteger(count) || count < 1 || count > MAX_BOTTLES) return fail(400, "Некоректна кількість");
+
+        const outcome = await Inventory.mutate(user._id, inventory => {
+            const bottle = stackAt(inventory, slotIds?.bottle, catalog);
+            if (bottle?.item.slug !== EMPTY_BOTTLE) return { abort: true, status: 400, message: "Поклади порожні пляшечки" };
+            if (!removeInventoryQuantity(inventory, bottle.item._id, count, bottle.stackKey)) {
+                return { abort: true, status: 400, message: "Недостатньо предметів" };
+            }
+            addInventoryQuantity(inventory, catalog.itemBySlug.get("potion"), count, WATER);
+        });
+        if (outcome.abort) return fail(outcome.status, outcome.message);
+        return { success: true, status: 200, inventory: await Inventory.findByUserId(user._id) };
+    }
+
     async saveJob(user, job, catalog) {
         try {
             const created = await StationJob.create(job);
@@ -175,7 +198,7 @@ class JobService {
     }
 
     async collect(user, slug) {
-        const { error, catalog } = await this.stationContext(user, slug, ["cooking", "brewing"]);
+        const { error, catalog, station } = await this.stationContext(user, slug, ["cooking", "brewing"]);
         if (error) return error;
         const job = await StationJob.findOne({ userId: user._id, station: slug });
         if (!job) return fail(404, "Немає завершеної роботи");
@@ -194,6 +217,7 @@ class JobService {
         const item = catalog.itemBySlug.get(job.output.slug);
         await Inventory.addItems(user._id, [{ item, quantity: state.ready * job.output.quantity, components: job.output.components }]);
         if (state.finished >= job.units) await StationJob.deleteOne({ _id: job._id });
+        await questService.track(user, { [station.uiType === "brewing" ? "brewed" : "cooked"]: state.ready * job.output.quantity });
 
         const inventory = await Inventory.findByUserId(user._id);
         const remaining = state.finished >= job.units ? null : describe(claimed);

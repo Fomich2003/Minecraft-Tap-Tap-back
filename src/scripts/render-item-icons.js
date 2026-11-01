@@ -28,8 +28,9 @@ async function main() {
     }
 
     const known = new Set(slugs);
-    for (const file of await fs.readdir(iconDirectory)) {
-        if (!known.has(path.parse(file).name)) await fs.rm(path.join(iconDirectory, file));
+    // Кольорові зілля лежать у власній папці, яку створює export-visual-assets
+    for (const entry of await fs.readdir(iconDirectory, { withFileTypes: true })) {
+        if (entry.isFile() && !known.has(path.parse(entry.name).name)) await fs.rm(path.join(iconDirectory, entry.name));
     }
 
     console.log(`Rendered ${slugs.length - failed.length} of ${slugs.length} icons`);

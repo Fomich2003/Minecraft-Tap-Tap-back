@@ -1,5 +1,8 @@
-const ASSUMED_BOOKSHELVES = 15;
-const COINS_PER_LEVEL = 50;
+import { ENCHANT_XP_PER_LEVEL } from "../../data/experience.js";
+
+// Гравець ставить до 18 полиць, а сила столу, як в оригіналі, рахується до 15
+export const MAX_BOOKSHELVES = 18;
+const FULL_POWER_SHELVES = 15;
 
 function createRandom(seed) {
     let state = seed >>> 0;
@@ -63,16 +66,17 @@ function selectEnchantments(random, enchantments, item, level) {
     return picked;
 }
 
-function buildOffers(user, item, enchantments) {
+// Як в оригіналі: кожна полиця піднімає рівень пропозицій, а без них стіл дає лише слабкі чари
+function buildOffers(user, item, enchantments, shelves) {
     const baseRandom = createRandom((user.enchantSeed ?? 1) ^ hashSlug(item.slug));
-    const base = baseRandom.int(8) + 1 + Math.floor(ASSUMED_BOOKSHELVES / 2) + baseRandom.int(ASSUMED_BOOKSHELVES + 1);
-    const levels = [Math.max(Math.floor(base / 3), 1), Math.floor(base * 2 / 3) + 1, Math.max(base, ASSUMED_BOOKSHELVES * 2)];
+    const base = baseRandom.int(8) + 1 + Math.floor(shelves / 2) + baseRandom.int(shelves + 1);
+    const levels = [Math.max(Math.floor(base / 3), 1), Math.floor(base * 2 / 3) + 1, Math.max(base, shelves * 2)];
 
     return levels.map((level, index) => {
         const random = createRandom(((user.enchantSeed ?? 1) ^ hashSlug(item.slug)) + (index + 1) * 7919);
         let picked = selectEnchantments(random, enchantments, item, level);
         if (item.slug === "book" && picked.length > 1) picked.splice(random.int(picked.length), 1);
-        return { level, lapis: index + 1, coinCost: level * COINS_PER_LEVEL, enchantments: picked.map(({ id, level: enchantLevel }) => ({ id, level: enchantLevel })) };
+        return { level, lapis: index + 1, xpCost: level * ENCHANT_XP_PER_LEVEL, enchantments: picked.map(({ id, level: enchantLevel }) => ({ id, level: enchantLevel })) };
     });
 }
 
@@ -83,10 +87,11 @@ export const enchantingStation = {
     preview({ slots, catalog, user, options }) {
         const { item, lapis } = slots;
         if (!item) return null;
+        const shelves = Math.round((user.bookshelves ?? 0) * FULL_POWER_SHELVES / MAX_BOOKSHELVES);
         const data = catalog.itemBySlug.get(item.slug);
         if (!data?.enchantability || item.components?.enchantments) return { choices: [] };
 
-        const choices = buildOffers(user, data, catalog.game.enchantments)
+        const choices = buildOffers(user, data, catalog.game.enchantments, shelves)
             .map((offer, index) => ({ index, ...offer, name: offer.enchantments[0] ? catalog.game.enchantments[offer.enchantments[0].id].name : null }))
             .filter(offer => offer.enchantments.length);
         const offer = choices.find(entry => entry.index === options?.offer);
@@ -97,7 +102,7 @@ export const enchantingStation = {
         const isBook = item.slug === "book";
         return {
             choices,
-            coinCost: offer.coinCost,
+            xpCost: offer.xpCost,
             result: {
                 slug: isBook ? "enchanted_book" : item.slug,
                 quantity: 1,

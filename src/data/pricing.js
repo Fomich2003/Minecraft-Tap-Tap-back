@@ -6,6 +6,7 @@ export const FIXED_PRICES = {
     elytra: 60000, heart_of_the_sea: 40000, totem_of_undying: 30000, shulker_shell: 5000, ender_pearl: 500,
     blaze_rod: 800, ghast_tear: 800, enchanted_golden_apple: 40000, prismarine_shard: 40, prismarine_crystals: 60,
     nautilus_shell: 800, breeze_rod: 900, potion: 5, water_bucket: 150, lava_bucket: 200, milk_bucket: 200, bedrock: 500000,
+    knowledge_book: 500000,
 };
 
 // Руда коштує не менше за те, що з неї виплавляється
@@ -17,13 +18,29 @@ export const ORE_PRICES = {
 };
 
 export const RECIPE_MARGIN = 1.15;
-export const SELL_RATIO = 0.5;
+// Продаж лише доповнює монети за тапи: при половині ціни одна алмазна руда приносила сотні монет за тап
+export const SELL_RATIO = 0.1;
+
+export const sellPriceOf = marketPrice => (marketPrice > 0 ? Math.max(1, Math.floor(marketPrice * SELL_RATIO)) : 0);
 
 export const CREATIVE_ONLY = new Set([
     "barrier", "bedrock", "chain_command_block", "command_block", "command_block_minecart", "debug_stick", "end_portal_frame",
     "jigsaw", "knowledge_book", "light", "reinforced_deepslate", "repeating_command_block", "spawner", "structure_block",
     "structure_void", "test_block", "test_instance_block", "trial_spawner", "vault", "budding_amethyst", "frogspawn",
 ]);
+
+const BOOK_BASE_PRICE = 1200;
+const TREASURE_FACTOR = 2;
+
+// Книга дорожча за рівень у квадраті: п'ята Гострота має бути ціллю, а не випадковою покупкою
+export const bookPrice = (level, treasure) => BOOK_BASE_PRICE * level * level * (treasure ? TREASURE_FACTOR : 1);
+
+export function potionPrice(potion) {
+    if (["water", "mundane", "thick", "awkward"].includes(potion)) return 80;
+    if (potion.startsWith("strong_")) return 900;
+    if (potion.startsWith("long_")) return 700;
+    return 400;
+}
 
 export function basePrice(slug, sources) {
     if (CREATIVE_ONLY.has(slug)) return 100000;

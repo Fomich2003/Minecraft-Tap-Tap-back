@@ -9,11 +9,11 @@ import blockRouter from "./src/routes/block.route.js";
 import userRouter from "./src/routes/user.route.js";
 import inventoryRouter from "./src/routes/inventory.route.js";
 import stationRouter from "./src/routes/station.route.js";
+import questRouter from "./src/routes/quest.route.js";
+import mobRouter from "./src/routes/mob.route.js";
 
 import launchBot from "./src/bot/bot.js";
 import connectDB from "./src/utils/connectDB.js";
-
-import { SERVER_CONF } from "./src/config/server.config.js";
 
 const app = express();
 
@@ -37,14 +37,21 @@ app.use("/api/block", blockRouter);
 app.use("/api/user", userRouter);
 app.use("/api/inventory", inventoryRouter);
 app.use("/api/station", stationRouter);
+app.use("/api/quest", questRouter);
+app.use("/api/mob", mobRouter);
 
 // База і бот 
 connectDB();
 
-if (SERVER_CONF.mode === "production") {
+// Один токен може опитувати лише один процес, тому тестові сервери вимикають бота
+if (process.env.BOT_POLLING !== "off") {
   launchBot();
 }
 
-app.listen(process.env.PORT, () => {
+app.listen(process.env.PORT, error => {
+  if (error) {
+    console.error(`Could not start on port ${process.env.PORT}:`, error.message);
+    process.exit(1);
+  }
   console.log(`App is running on port ${process.env.PORT}`);
 });

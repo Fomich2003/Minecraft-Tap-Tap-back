@@ -19,6 +19,11 @@ const UserSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  // Рівень покращення тапа: спільний для всіх блоків
+  tapLevel: {
+    type: Number,
+    default: 0
+  },
   tapBlocks: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: "Item"
@@ -55,6 +60,75 @@ const UserSchema = new mongoose.Schema({
   enchantSeed: {
     type: Number,
     default: 1
+  },
+  // Id стаків з інвентаря, вдягнених на кожен вид блоків
+  tools: {
+    pickaxe: { type: mongoose.Schema.Types.ObjectId, default: null },
+    axe: { type: mongoose.Schema.Types.ObjectId, default: null },
+    shovel: { type: mongoose.Schema.Types.ObjectId, default: null },
+    sword: { type: mongoose.Schema.Types.ObjectId, default: null }
+  },
+  effects: [{
+    _id: false,
+    id: String,
+    level: Number,
+    expiresAt: Date
+  }],
+  // xp витрачається, xpTotal лише росте і визначає рівень досвіду
+  xp: {
+    type: Number,
+    default: 0
+  },
+  xpTotal: {
+    type: Number,
+    default: 0
+  },
+  // Поставлені біля столу полиці: куплені один раз і лишаються назавжди
+  bookshelves: {
+    type: Number,
+    default: 0
+  },
+  // Книга знань відкриває всі рецепти
+  knowledge: {
+    type: Boolean,
+    default: false
+  },
+  // Банер у профілі: копія властивостей, сам предмет лишається в інвентарі
+  profileBanner: {
+    base: { type: String, default: null },
+    patterns: [{ _id: false, pattern: String, color: String }]
+  },
+  // Slug відкритих мобів. Безкоштовні доступні всім і тут не зберігаються
+  mobs: [String],
+  mobKills: {
+    type: Map,
+    of: Number,
+    default: {}
+  },
+  // Бій із босом: readyAt коли можна призвати знову, expiresAt коли він утече
+  bosses: {
+    wither: { active: Boolean, readyAt: Date, expiresAt: Date },
+    ender_dragon: { active: Boolean, readyAt: Date, expiresAt: Date }
+  },
+  // Лічильники постійних квестів за всю гру
+  questStats: {
+    type: Map,
+    of: Number,
+    default: {}
+  },
+  questsClaimed: [String],
+  // Щоденні квести: набір фіксується на добу, лічильники обнуляються разом із ним
+  daily: {
+    day: { type: String, default: null },
+    ids: [String],
+    level: { type: Number, default: 0 },
+    progress: { type: Map, of: Number, default: {} },
+    claimed: [String]
+  },
+  // Мова, обрана в грі. Її читає бот, який не бачить налаштувань клієнта
+  language: {
+    type: String,
+    default: null
   }
 }, { timestamps: true });
 

@@ -3,16 +3,16 @@ import blockService from "../services/block.service.js";
 async function addTaps(req, res) {
   try {
 
-    if (!req.body) return res.status(400).json({ success: false, message: "Body is invalid" });
+    if (!req.body) return res.status(400).json({ success: false, message: "Цей блок недоступний" });
 
-    if (!req.user) return res.status(400).json({ success: false, message: "User is invalid" });
+    if (!req.user) return res.status(400).json({ success: false, message: "Користувача не знайдено" });
 
     // Витягуємо з тіла запиту telegramId та slug предмета
     const { slug, count } = req.body;
 
     // Перевірка наявності slug предмета
     if (!slug)
-      return res.status(400).json({ success: false, message: "Slug invalid" });
+      return res.status(400).json({ success: false, message: "Цей блок недоступний" });
 
     const result = await blockService.addTaps(req.user._id, slug, count)
 
@@ -28,7 +28,7 @@ async function addTaps(req, res) {
 
 async function buyBlock(req, res) {
   try {
-    if (!req.body) return res.status(400).json({ success: false, message: "Body is invalid" });
+    if (!req.body) return res.status(400).json({ success: false, message: "Цей блок недоступний" });
 
     // Витягуємо з тіла запиту slug предмета
     const { slug } = req.body;
@@ -36,11 +36,11 @@ async function buyBlock(req, res) {
 
     // Перевірка наявності userId
     if (!userId)
-      return res.status(400).json({ success: false, message: "UserId invalid" });
+      return res.status(400).json({ success: false, message: "Користувача не знайдено" });
 
     // Перевірка наявності slug предмета
     if (!slug)
-      return res.status(400).json({ success: false, message: "Slug invalid" });
+      return res.status(400).json({ success: false, message: "Цей блок недоступний" });
 
     const result = await blockService.buyBlock(slug, userId, req.tgUser);
 
@@ -79,10 +79,10 @@ async function getBlocksToTap(req, res) {
 async function getBlockBySlug(req, res) {
   try {
 
-    if (!req.params) return res.status(400).json({ success: false, message: "Params is invalid" });
+    if (!req.params) return res.status(400).json({ success: false, message: "Цей блок недоступний" });
 
     const { slug } = req.params;
-    if (!slug) return res.status(400).json({ success: false, message: "Slug invalid" });
+    if (!slug) return res.status(400).json({ success: false, message: "Цей блок недоступний" });
 
     const result = await blockService.getBlockBySlug(slug);
     res.status(result.status).json(result);
@@ -95,12 +95,11 @@ async function getBlockBySlug(req, res) {
 async function getFirst(req, res) {
   try {
 
-    if (!req.user) return res.status(400).json({ success: false, message: "User is invalid" });
+    if (!req.user) return res.status(400).json({ success: false, message: "Користувача не знайдено" });
 
 
 
     const result = await blockService.getFirst(req.user._id)
-    console.log("[getFirst]", result)
     // Повертаємо успішну відповідь з повідомленням
     return res.status(result.status).json(result);
 
@@ -114,7 +113,7 @@ async function getFirst(req, res) {
 async function getUserBlocks(req, res) {
   try {
 
-    if (!req.user) return res.status(400).json({ success: false, message: "User is invalid" });
+    if (!req.user) return res.status(400).json({ success: false, message: "Користувача не знайдено" });
 
 
 

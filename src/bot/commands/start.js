@@ -1,15 +1,30 @@
-import { SERVER_CONF } from "../../config/server.config.js";
+import fs from "node:fs";
+import User from "../../repositories/User.repository.js";
+
+const texts = JSON.parse(fs.readFileSync(new URL("../../data/bot-texts.json", import.meta.url), "utf8"));
+const DEFAULT_TEXTS = { prompt: "Натисни кнопку, щоб відкрити гру", play: "Грати" };
+const GAME_URL = process.env.WEB_APP_URL || "https://tap-tap.fomka.online/";
+
+// Новий гравець ще не обрав мову в грі, тому береться мова його Telegram
+function textsFor(code = "") {
+    return texts[code] ?? texts[code.split("-")[0]] ?? DEFAULT_TEXTS;
+}
 
 async function startCMD(ctx) {
+    // Кнопка Mini App працює лише в особистому чаті з ботом
+    if (ctx.chat?.type !== "private") return;
     try {
-        ctx.reply("click", {
+        // Збій бази не має лишати гравця без запрошення
+        const user = await User.findByTelegramId(ctx.from.id).catch(() => null);
+        const { prompt, play } = textsFor(user?.language ?? ctx.from.language_code);
+        await ctx.reply(prompt, {
             reply_markup: {
                 inline_keyboard: [
                     [
                         {
-                            text: `Open WebApp`,
+                            text: play,
                             web_app: {
-                                url: "https://tap-tap.fomka.online/"
+                                url: GAME_URL
                             }
                         }
                     ]

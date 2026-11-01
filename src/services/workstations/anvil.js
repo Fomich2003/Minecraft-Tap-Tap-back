@@ -1,4 +1,4 @@
-const COINS_PER_LEVEL = 100;
+import { ANVIL_XP_PER_LEVEL } from "../../data/experience.js";
 
 const enchantmentsOf = cell => cell.components?.stored_enchantments ?? cell.components?.enchantments ?? {};
 
@@ -39,7 +39,7 @@ export const anvilStation = {
             const perUnit = Math.max(1, Math.floor(max / 4));
             const units = Math.min(right.quantity, Math.ceil(damage / perUnit));
             return {
-                coinCost: units * COINS_PER_LEVEL,
+                xpCost: units * ANVIL_XP_PER_LEVEL,
                 result: { slug: left.slug, quantity: 1, components: { ...left.components, damage: Math.max(0, damage - units * perUnit) } },
                 consume: [{ cell: left, quantity: 1 }, { cell: right, quantity: units }],
             };
@@ -63,7 +63,7 @@ export const anvilStation = {
         components[left.slug === "enchanted_book" ? "stored_enchantments" : "enchantments"] = merged;
 
         return {
-            coinCost: levels * COINS_PER_LEVEL,
+            xpCost: levels * ANVIL_XP_PER_LEVEL,
             result: { slug: left.slug, quantity: 1, components },
             consume: [{ cell: left, quantity: 1 }, { cell: right, quantity: 1 }],
         };

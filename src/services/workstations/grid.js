@@ -56,6 +56,7 @@ export function findGridRecipe(cells, catalog) {
 }
 
 export const gridStation = {
+    repeatable: true,
     slots: () => ["0", "1", "2", "3", "4", "5", "6", "7", "8"],
 
     preview({ slots, catalog }) {

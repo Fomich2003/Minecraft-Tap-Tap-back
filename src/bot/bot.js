@@ -1,22 +1,38 @@
 import { Telegraf } from "telegraf";
+import { message } from "telegraf/filters";
 import startCMD from "./commands/start.js";
+
+const RETRY_MS = 15000;
+const COMMANDS = [
+    { command: "start", description: "Запросити в гру" },
+    { command: "play", description: "Грати" },
+];
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
 bot.start(startCMD);
+bot.command("play", startCMD);
+// Будь-яке повідомлення, зокрема слово «Грати», теж запрошує в гру
+bot.on(message("text"), startCMD);
+bot.catch(error => console.log("[bot]", `Update failed: ${error.message}`));
 
+// Telegram тримає старе з'єднання кілька секунд після перезапуску сервера, а мережа може зникнути: бот сам повертається
 export default async function launchBot() {
 
     console.log("[bot]", "try to start bot...")
 
-
-    bot.launch().then(() => {
-        console.log("[bot]", "Bot was started")
-    }).catch((e) => {
-        console.log("[bot]", `Bot is error: ${e}`)
-    })
+    try {
+        await bot.telegram.setMyCommands(COMMANDS);
+        await bot.launch(() => console.log("[bot]", "Bot was started"));
+    } catch (error) {
+        console.log("[bot]", `Bot is error: ${error.message}`)
+        setTimeout(launchBot, RETRY_MS);
+    }
 
 }
+
+export { bot };
+
 // bot.on('message', async (ctx) => {
 //     console.log('MESSAGE:', JSON.stringify(ctx.message, null, 2));
 //     const newItem = new ItemModel({

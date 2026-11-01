@@ -1,10 +1,12 @@
 import Inventory from "../repositories/Inventory.repository.js";
 import User from "../repositories/User.repository.js";
-import { addInventoryQuantity, removeInventoryQuantity } from "../utils/inventory-stacks.js";
+import { addInventoryQuantity, countInventoryQuantity, removeInventoryQuantity } from "../utils/inventory-stacks.js";
 import catalogService from "./catalog.service.js";
+import loadoutService from "./loadout.service.js";
+import questService from "./quest.service.js";
 import { gridStation } from "./workstations/grid.js";
 import { anvilStation, grindstoneStation } from "./workstations/anvil.js";
-import { enchantingStation } from "./workstations/enchanting.js";
+import { enchantingStation, MAX_BOOKSHELVES } from "./workstations/enchanting.js";
 import { cartographyStation, loomStation, smithingStation, stonecutterStation } from "./workstations/simple-stations.js";
 
 const HANDLERS = {
@@ -18,7 +20,23 @@ const HANDLERS = {
     cartography: cartographyStation,
 };
 
+const MAX_CRAFT_TIMES = 64;
+
 const fail = (status, message) => ({ success: false, status, message });
+
+// Скільки предметів один крафт забирає з кожного слота. Клієнт віднімає це від вмісту слотів
+function usesBySlot(consume) {
+    const uses = {};
+    for (const { cell, quantity } of consume ?? []) uses[cell.slot] = (uses[cell.slot] ?? 0) + quantity;
+    return uses;
+}
+
+function craftTimes(handler, requested) {
+    if (requested === undefined || requested === null) return 1;
+    const times = Number(requested);
+    if (!Number.isSafeInteger(times) || times < 1 || times > MAX_CRAFT_TIMES) return null;
+    return handler.repeatable || times === 1 ? times : null;
+}
 
 export function hasStation(user, station) {
     return station.isDefault || station.price === 0 || (user.stations ?? []).includes(station.slug);
@@ -56,7 +74,54 @@ function requiredByStack(consume) {
     return [...required.values()];
 }
 
+const RECIPE_STATIONS = new Set(["crafting_table", "stonecutter", "furnace", "blast_furnace", "smoker", "campfire"]);
+
+// Клітинки рецепта одним форматом: сітка 3×3 для верстака, список для решти станцій
+function recipeCells(recipe) {
+    if (recipe.kind === "shaped") return { width: recipe.width, cells: recipe.pattern };
+    if (recipe.kind === "shapeless") return { width: 3, cells: recipe.ingredients };
+    return recipe.input?.length ? { width: 1, cells: [recipe.input] } : null;
+}
+
 class StationService {
+    // Полиці ставляться один раз: вони зникають з інвентаря й лишаються біля столу назавжди
+    async installBookshelves(user) {
+        const room = MAX_BOOKSHELVES - (user.bookshelves ?? 0);
+        if (room < 1) return fail(400, "Усі полиці вже стоять");
+
+        const { itemBySlug } = await catalogService.get();
+        const shelf = itemBySlug.get("bookshelf");
+        const outcome = await Inventory.mutate(user._id, inventory => {
+            const count = Math.min(room, countInventoryQuantity(inventory, shelf._id));
+            if (count < 1) return { abort: true, status: 400, message: "Немає полиць в інвентарі" };
+            removeInventoryQuantity(inventory, shelf._id, count);
+            return { count };
+        });
+        if (outcome.abort) return fail(outcome.status, outcome.message);
+
+        const updated = await User.addBookshelves(user._id, outcome.count, MAX_BOOKSHELVES);
+        if (!updated) {
+            await Inventory.addItems(user._id, [{ item: shelf, quantity: outcome.count }]);
+            return fail(400, "Усі полиці вже стоять");
+        }
+        return { success: true, status: 200, bookshelves: updated.bookshelves, inventory: await Inventory.findByUserId(user._id) };
+    }
+
+    async recipes(user) {
+        if (!user.knowledge) return fail(403, "Потрібна книга знань");
+        const { recipes, recipesByStation } = await catalogService.get();
+        const list = recipes.filter(recipe => RECIPE_STATIONS.has(recipe.station) && recipe.result?.slug).flatMap(recipe => {
+            const layout = recipeCells(recipe);
+            return layout ? [{ key: recipe.recipeKey, station: recipe.station, ...layout, result: recipe.result }] : [];
+        });
+        const potions = (recipesByStation.get("brewing_stand") ?? []).map(({ recipeKey, station, brewing }) => ({
+            key: recipeKey, station,
+            brewing: { bottle: brewing.item, potion: brewing.potion, reagent: brewing.reagent },
+            result: { slug: brewing.outputItem, quantity: 1, components: { potion: brewing.outputPotion } },
+        }));
+        return { success: true, status: 200, recipes: [...list, ...potions] };
+    }
+
     async list(user) {
         const catalog = await catalogService.get();
         const stations = catalog.stations.map(station => {
@@ -113,12 +178,18 @@ class StationService {
         if (!slots) return fail(400, "Предмета вже немає в інвентарі");
 
         const preview = handler.preview({ slots, catalog, user, options });
-        return { success: true, status: 200, preview: preview ? { ...preview, consume: undefined } : null };
+        return {
+            success: true, status: 200,
+            preview: preview ? { ...preview, consume: undefined, uses: usesBySlot(preview.consume), repeatable: Boolean(handler.repeatable) } : null,
+        };
     }
 
-    async apply(user, slug, slotIds, options) {
+    async apply(user, slug, slotIds, options, requestedTimes) {
         const { error, catalog, handler } = await this.context(user, slug);
         if (error) return error;
+
+        const times = craftTimes(handler, requestedTimes);
+        if (!times) return fail(400, "Некоректна кількість");
 
         const plain = await Inventory.findPlainByUserId(user._id);
         const firstSlots = plain && resolveSlots(plain, slotIds, handler, catalog);
@@ -126,8 +197,8 @@ class StationService {
         const quote = handler.preview({ slots: firstSlots, catalog, user, options });
         if (!quote?.result) return fail(400, quote?.message ?? "Рецепт не підходить");
 
-        const coinCost = quote.coinCost ?? 0;
-        if (coinCost && !(await User.spendCoins(user._id, coinCost))) return fail(400, "Недостатньо монет");
+        const xpCost = (quote.xpCost ?? 0) * times;
+        if (xpCost && !(await User.spendXp(user._id, xpCost))) return fail(400, "Недостатньо досвіду");
 
         const outcome = await Inventory.mutate(user._id, inventory => {
             const slots = resolveSlots(inventory, slotIds, handler, catalog);
@@ -136,26 +207,29 @@ class StationService {
             if (!plan?.result) return { abort: true, status: 400, message: "Рецепт не підходить" };
 
             for (const { itemId, stackKey, quantity } of requiredByStack(plan.consume)) {
-                if (!removeInventoryQuantity(inventory, itemId, quantity, stackKey)) {
+                if (!removeInventoryQuantity(inventory, itemId, quantity * times, stackKey)) {
                     return { abort: true, status: 400, message: "Недостатньо матеріалів в інвентарі" };
                 }
             }
 
             const resultItem = catalog.itemBySlug.get(plan.result.slug);
             if (!resultItem) return { abort: true, status: 500, message: "Предмет результату не знайдено" };
-            addInventoryQuantity(inventory, resultItem, plan.result.quantity ?? 1, plan.result.components);
-            for (const slug of plan.remainders ?? []) addInventoryQuantity(inventory, catalog.itemBySlug.get(slug), 1);
-            return { result: plan.result };
+            addInventoryQuantity(inventory, resultItem, (plan.result.quantity ?? 1) * times, plan.result.components);
+            for (const slug of plan.remainders ?? []) addInventoryQuantity(inventory, catalog.itemBySlug.get(slug), times);
+
+            const used = Object.fromEntries(Object.entries(usesBySlot(plan.consume)).map(([slot, quantity]) => [slot, quantity * times]));
+            return { result: plan.result, used };
         });
 
         if (outcome.abort) {
-            if (coinCost) await User.incrementBalance(user._id, coinCost);
+            if (xpCost) await User.refundXp(user._id, xpCost);
             return fail(outcome.status, outcome.message);
         }
         if (handler.bumpsEnchantSeed) await User.bumpEnchantSeed(user._id);
+        await questService.track(user, { crafts: (outcome.result.quantity ?? 1) * times });
 
-        const [inventory, updatedUser] = await Promise.all([Inventory.findByUserId(user._id), User.findById(user._id)]);
-        return { success: true, status: 200, result: outcome.result, inventory, balance: updatedUser.balance };
+        const [inventory, updatedUser, { loadout }] = await Promise.all([Inventory.findByUserId(user._id), User.findById(user._id), loadoutService.forUser(user._id)]);
+        return { success: true, status: 200, result: outcome.result, used: outcome.used, times, inventory, balance: updatedUser.balance, loadout };
     }
 }
 

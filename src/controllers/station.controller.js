@@ -12,19 +12,22 @@ const handle = action => async (req, res) => {
     }
 }
 
+const installBookshelves = handle(req => stationService.installBookshelves(req.user))
+const listRecipes = handle(req => stationService.recipes(req.user))
 const listStations = handle(req => stationService.list(req.user))
 const buyStation = handle(req => stationService.buy(req.user, req.params.slug))
 const activateStation = handle(req => stationService.activate(req.user, req.params.slug))
 const previewStation = handle(req => stationService.preview(req.user, req.params.slug, req.body.slots, req.body.options))
-const applyStation = handle(req => stationService.apply(req.user, req.params.slug, req.body.slots, req.body.options))
+const applyStation = handle(req => stationService.apply(req.user, req.params.slug, req.body.slots, req.body.options, req.body.times))
 const jobStatus = handle(req => jobService.status(req.user, req.params.slug))
 const previewCooking = handle(req => jobService.previewCooking(req.user, req.params.slug, req.body.slots))
 const startCooking = handle(req => jobService.startCooking(req.user, req.params.slug, req.body.slots, req.body.quantity))
 const startBrewing = handle(req => jobService.startBrewing(req.user, req.params.slug, req.body.slots))
+const fillBottles = handle(req => jobService.fillBottles(req.user, req.params.slug, req.body.slots, req.body.count))
 const collectJob = handle(req => jobService.collect(req.user, req.params.slug))
 const cancelJob = handle(req => jobService.cancel(req.user, req.params.slug))
 
 export {
-    listStations, buyStation, activateStation, previewStation, applyStation,
-    jobStatus, previewCooking, startCooking, startBrewing, collectJob, cancelJob,
+    listStations, buyStation, activateStation, previewStation, applyStation, installBookshelves, listRecipes,
+    jobStatus, previewCooking, startCooking, startBrewing, fillBottles, collectJob, cancelJob,
 }

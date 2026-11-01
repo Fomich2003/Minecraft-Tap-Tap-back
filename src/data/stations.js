@@ -1,4 +1,4 @@
-// Верстаки гри. Ціни задані за прогресом: 1 тап = 1 монета, щоденна нагорода = 500.
+// Верстаки гри. Ціни задані за прогресом: без покращень 1 тап = 1 монета, щоденна нагорода = 500.
 export const STATIONS = [
     { slug: "crafting_table", itemSlug: "crafting_table", uiType: "grid", price: 0, isDefault: true },
     { slug: "campfire", itemSlug: "campfire", uiType: "cooking", price: 500 },

@@ -23,6 +23,17 @@ async function cached(filePath, sha1, url) {
     return data;
 }
 
+// Будь-яка мова гри. Індекс ресурсів уже лежить поруч після prepareMinecraftData
+export async function downloadLanguage(version, file) {
+    const directory = path.join(cacheRoot, version);
+    const assetIndex = JSON.parse(await fs.readFile(path.join(directory, "assets.json"), "utf8"));
+    const language = assetIndex.objects[`minecraft/lang/${file}.json`];
+    if (!language) return null;
+    await fs.mkdir(path.join(directory, "lang"), { recursive: true });
+    const url = `https://resources.download.minecraft.net/${language.hash.slice(0, 2)}/${language.hash}`;
+    return JSON.parse((await cached(path.join(directory, "lang", `${file}.json`), language.hash, url)).toString("utf8"));
+}
+
 // Завантажує клієнт гри як архів даних і українську локалізацію в server/temp
 export async function prepareMinecraftData(version) {
     const directory = path.join(cacheRoot, version);

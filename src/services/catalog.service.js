@@ -2,6 +2,7 @@ import GameData from "../models/GameData.model.js";
 import ItemModel from "../models/Item.model.js";
 import RecipeModel from "../models/Recipe.model.js";
 import StationModel from "../models/Station.model.js";
+import { FIXED_PRICES, sellPriceOf } from "../data/pricing.js";
 
 // Каталог змінюється лише імпортом, тому тримається в пам'яті процесу
 class CatalogService {
@@ -18,12 +19,18 @@ class CatalogService {
     }
 
     async load() {
-        const [items, recipes, stations, gameData] = await Promise.all([
+        const [storedItems, recipes, stations, gameData] = await Promise.all([
             ItemModel.find().lean(),
             RecipeModel.find().lean(),
             StationModel.find().sort({ order: 1 }).lean(),
             GameData.find().lean(),
         ]);
+
+        // Ціни рахуються тут, щоб зміна балансу не потребувала імпорту каталогу в базу
+        const items = storedItems.map(item => {
+            const marketPrice = FIXED_PRICES[item.slug] ?? item.marketPrice;
+            return { ...item, marketPrice, sellPrice: item.sellPrice ? sellPriceOf(marketPrice) : 0 };
+        });
 
         const recipesByStation = new Map();
         for (const recipe of recipes) {

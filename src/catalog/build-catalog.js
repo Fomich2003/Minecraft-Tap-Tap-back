@@ -1,4 +1,4 @@
-import { CREATIVE_ONLY, FIXED_PRICES, ORE_PRICES, RECIPE_MARGIN, SELL_RATIO, basePrice } from "../data/pricing.js";
+import { CREATIVE_ONLY, FIXED_PRICES, ORE_PRICES, RECIPE_MARGIN, basePrice, sellPriceOf } from "../data/pricing.js";
 import { COOKING_STATIONS, STATIONS } from "../data/stations.js";
 import { FUEL_BURN_TICKS, NON_FUEL_TAGS } from "../data/fuels.js";
 import { TAP_BLOCKS, tapsToBreak } from "../data/tap-blocks.js";
@@ -263,7 +263,7 @@ function assignPrices(items, recipes, sources) {
 
     for (const item of items) {
         item.marketPrice = price.get(item.slug);
-        item.sellPrice = Math.floor(item.marketPrice * SELL_RATIO);
+        item.sellPrice = sellPriceOf(item.marketPrice);
         item.buyable = true;
     }
 }

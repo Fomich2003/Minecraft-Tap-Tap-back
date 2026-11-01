@@ -4,6 +4,7 @@ const TRIM_MATERIALS = {
 };
 
 export const stonecutterStation = {
+    repeatable: true,
     slots: () => ["input"],
 
     preview({ slots, catalog, options }) {
@@ -22,12 +23,14 @@ export const smithingStation = {
 
     preview({ slots, catalog }) {
         const { template, base, addition } = slots;
-        if (!template || !base || !addition) return null;
+        if (!base || !addition) return null;
+        // Незеритове покращення обходиться без шаблона: лише оздоблення справді його потребують
         const recipe = (catalog.recipesByStation.get("smithing_table") ?? []).find(candidate =>
-            candidate.template.includes(template.slug) && candidate.base.includes(base.slug) && candidate.addition.includes(addition.slug));
+            (template ? candidate.template.includes(template.slug) : candidate.kind === "smithing_transform")
+            && candidate.base.includes(base.slug) && candidate.addition.includes(addition.slug));
         if (!recipe) return null;
 
-        const consume = [template, base, addition].map(cell => ({ cell, quantity: 1 }));
+        const consume = [template, base, addition].filter(Boolean).map(cell => ({ cell, quantity: 1 }));
         if (recipe.kind === "smithing_transform") {
             return { recipeKey: recipe.recipeKey, consume, result: { slug: recipe.result.slug, quantity: recipe.result.quantity, components: base.components } };
         }

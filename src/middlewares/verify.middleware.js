@@ -2,6 +2,7 @@ import verifyTelegram from "../utils/crypto.js";
 import User from "../repositories/User.repository.js";
 import { SERVER_CONF } from "../config/server.config.js";
 
+const NO_ACCOUNT = "Не вдалося підтвердити акаунт Telegram";
 const LOOPBACK_ADDRESSES = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
 
 // Тунель (ngrok) теж приходить з localhost, але додає x-forwarded-for
@@ -25,12 +26,12 @@ async function checkTgProfile(req, res, next) {
             return next()
         }
 
-        if (!req.body) return res.status(400).json({ success: false, message: "Body is required" })
+        if (!req.body) return res.status(400).json({ success: false, message: NO_ACCOUNT })
         const tgData = req.body.telegramData
-        if (!tgData) return res.status(400).json({ success: false, message: "tgData is required" })
+        if (!tgData) return res.status(400).json({ success: false, message: NO_ACCOUNT })
 
         const tgUser = verifyTelegram(tgData)
-        if (!tgUser) return res.status(401).json({ success: false, message: "tgUser invalid" })
+        if (!tgUser) return res.status(401).json({ success: false, message: NO_ACCOUNT })
         const user = await User.findByTelegramId(tgUser.user.id)
         if (user) req.user = user
         req.tgUser = tgUser
