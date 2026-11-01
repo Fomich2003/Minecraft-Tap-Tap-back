@@ -1,12 +1,13 @@
 import { Telegraf } from "telegraf";
 import { message } from "telegraf/filters";
-import startCMD from "./commands/start.js";
+import startCMD, { GAME_URL, PLAY_LABEL } from "./commands/start.js";
 
 const RETRY_MS = 15000;
 const COMMANDS = [
-    { command: "start", description: "Запросити в гру" },
-    { command: "play", description: "Грати" },
+    { command: "start", description: "Open the game" },
+    { command: "play", description: "Play" },
 ];
+const MENU_BUTTON = { type: "web_app", text: PLAY_LABEL, web_app: { url: GAME_URL } };
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
@@ -23,6 +24,7 @@ export default async function launchBot() {
 
     try {
         await bot.telegram.setMyCommands(COMMANDS);
+        await bot.telegram.setChatMenuButton({ menuButton: MENU_BUTTON });
         await bot.launch(() => console.log("[bot]", "Bot was started"));
     } catch (error) {
         console.log("[bot]", `Bot is error: ${error.message}`)

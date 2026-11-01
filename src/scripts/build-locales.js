@@ -19,7 +19,6 @@ const clientRoot = path.resolve(scriptDir, "../../../client");
 const outputDir = path.join(clientRoot, "public/locales");
 const cacheDir = path.resolve(scriptDir, "../../temp/locale-cache");
 const manualDir = path.resolve(scriptDir, "../data/ui-translations");
-const botTextsPath = path.resolve(scriptDir, "../data/bot-texts.json");
 const translatorLanguagesPath = path.resolve(scriptDir, "../data/translator-languages.json");
 const CONCURRENCY = 8;
 const MAX_MISSING_UI_SHARE = 0.2;
@@ -237,7 +236,6 @@ async function main() {
     log("Записую файли");
     const summary = [];
     const skipped = [];
-    const botTexts = {};
     const uiFor = new Map();
 
     const buildUi = async language => {
@@ -310,7 +308,6 @@ async function main() {
             code: language.code, native, name: language.name, partial: language.partial || uiIncomplete ? true : undefined, uiMissing, namesFallback: fallback, namesTotal: total,
             listFont: family && !SYSTEM_SCRIPTS.has(script) ? font : undefined, region: file?.["language.region"],
         });
-        if (ui["Натисни кнопку, щоб відкрити гру"]) botTexts[language.code] = { prompt: ui["Натисни кнопку, щоб відкрити гру"], play: ui["Грати"] };
     }
 
     if (!onlyCodes.length) {
@@ -323,7 +320,6 @@ async function main() {
             }))
             .sort((left, right) => left.name.localeCompare(right.name, "en"));
         await writeJson(path.join(outputDir, "languages.json"), list);
-        await fs.writeFile(botTextsPath, JSON.stringify(botTexts, null, 0));
     }
 
     const incomplete = summary.filter(entry => entry.uiMissing);

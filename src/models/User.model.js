@@ -129,6 +129,20 @@ const UserSchema = new mongoose.Schema({
   language: {
     type: String,
     default: null
+  },
+  // Хто запросив гравця. Нагорода видається один раз, коли він уперше зайде в гру
+  referredBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    default: null
+  },
+  referralPaid: {
+    type: Boolean,
+    default: false
+  },
+  referrals: {
+    type: Number,
+    default: 0
   }
 }, { timestamps: true });
 

@@ -7,6 +7,7 @@ import catalogService from "./catalog.service.js";
 import inventoryService from "./inventory.service.js";
 import loadoutService from "./loadout.service.js";
 import questService from "./quest.service.js";
+import referralService from "./referral.service.js";
 
 const LANGUAGE_CODE = /^[A-Za-z]{2,8}(-[A-Za-z0-9]{1,8})*$/;
 
@@ -85,7 +86,7 @@ class UserService {
 
     // Створює профіль під час першого входу. Для наявних користувачів лише оновлює дані з Telegram
     async getFullUserInfoByTG(tgUser) {
-        let user = await User.upsertFromTelegram(tgUser.user)
+        let user = await referralService.settle(await User.upsertFromTelegram(tgUser.user))
         const [catalog, foundInventory] = await Promise.all([catalogService.get(), Inventory.findPlainByUserId(user._id)])
         // Книга знань з будь-якого джерела застосовується сама
         const book = catalog.itemBySlug.get("knowledge_book")
@@ -99,7 +100,7 @@ class UserService {
         const inventory = await inventoryService.getInventory(user._id)
         const plainInventory = await Inventory.findPlainByUserId(user._id)
         const loadout = loadoutService.describe(user, plainInventory, catalog)
-        return { user: { ...user, photo: tgUser.user.photo_url ?? null, upgrade: describeUpgrade(user.tapLevel ?? 0), loadout, questsReady: questService.readyCount(user) }, inventory };
+        return { user: { ...user, photo: tgUser.user.photo_url ?? null, upgrade: describeUpgrade(user.tapLevel ?? 0), loadout, questsReady: questService.readyCount(user), referralReward: referralService.describe(user) }, inventory };
     }
 }
 

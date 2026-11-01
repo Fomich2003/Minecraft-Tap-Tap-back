@@ -1,3 +1,4 @@
+import leaderboardService from "../services/leaderboard.service.js";
 import loadoutService from "../services/loadout.service.js";
 import userService from "../services/user.service.js";
 
@@ -66,5 +67,6 @@ const equipTool = withUser(req => loadoutService.equip(req.user, req.body?.stack
 const consumeItem = withUser(req => loadoutService.consume(req.user, req.body?.stackId));
 const setProfileBanner = withUser(req => userService.setProfileBanner(req.user._id, req.body?.stackId));
 const setUserLanguage = withUser(req => userService.setLanguage(req.user._id, req.body?.language));
+const getLeaderboard = withUser(req => leaderboardService.top(req.user, req.body?.metric));
 
-export { getUserProfile, claimUserAward, upgradeUserTap, getEquipment, equipTool, consumeItem, setUserLanguage, setProfileBanner }
+export { getUserProfile, claimUserAward, upgradeUserTap, getEquipment, equipTool, consumeItem, setUserLanguage, setProfileBanner, getLeaderboard }

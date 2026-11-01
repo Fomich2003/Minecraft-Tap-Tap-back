@@ -45,6 +45,57 @@ class UserRepository {
     }
   }
 
+  // Вставка лише для нового гравця: наявний документ не змінюється. Повертає, чи створено запис
+  async createReferred(tgUser, inviterId) {
+    try {
+      const existing = await UserModel.findOneAndUpdate(
+        { telegramId: tgUser.id },
+        { $setOnInsert: { telegramId: tgUser.id, username: tgUser.username ?? null, firstName: tgUser.first_name ?? null, referredBy: inviterId } },
+        { upsert: true, returnDocument: "before", setDefaultsOnInsert: true }
+      ).lean();
+      return !existing;
+    } catch (error) {
+      // Два паралельні /start: перший уже створив гравця
+      if (error.code === 11000) return false;
+      throw error;
+    }
+  }
+
+  // Умова в самому запиті: паралельні запити профілю не видадуть нагороду двічі
+  async claimReferral(userId, coins) {
+    return await UserModel.findOneAndUpdate(
+      { _id: userId, referredBy: { $ne: null }, referralPaid: { $ne: true } },
+      { $set: { referralPaid: true }, $inc: { balance: coins } },
+      { new: true }
+    );
+  }
+
+  async addReferral(userId, coins) {
+    return await UserModel.updateOne({ _id: userId }, { $inc: { referrals: 1, balance: coins } });
+  }
+
+  async leaderboardRows(filter, score, bossKills, limit) {
+    return await UserModel.aggregate([
+      { $match: filter },
+      {
+        $project: {
+          firstName: 1,
+          username: 1,
+          balance: { $ifNull: ["$balance", 0] },
+          xpTotal: { $ifNull: ["$xpTotal", 0] },
+          bosses: bossKills,
+          score,
+        }
+      },
+      { $sort: { score: -1, _id: 1 } },
+      { $limit: limit },
+    ]);
+  }
+
+  async countAbove(score, value) {
+    return await UserModel.countDocuments({ $expr: { $gt: [score, value] } });
+  }
+
   async incrementBalance(userId, count) {
     return await UserModel.findByIdAndUpdate(
       userId,

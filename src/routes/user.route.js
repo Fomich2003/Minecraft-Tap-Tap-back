@@ -1,5 +1,5 @@
 import express from "express";
-import { getUserProfile, claimUserAward, upgradeUserTap, getEquipment, equipTool, consumeItem, setUserLanguage, setProfileBanner } from "../controllers/user.controller.js";
+import { getUserProfile, claimUserAward, upgradeUserTap, getEquipment, equipTool, consumeItem, setUserLanguage, setProfileBanner, getLeaderboard } from "../controllers/user.controller.js";
 import { checkTgProfile } from "../middlewares/verify.middleware.js";
 
 const userRouter = express.Router();
@@ -27,5 +27,8 @@ userRouter.post("/banner", checkTgProfile, setProfileBanner);
 
 // /api/user/language
 userRouter.post("/language", checkTgProfile, setUserLanguage);
+
+// /api/user/leaderboard
+userRouter.post("/leaderboard", checkTgProfile, getLeaderboard);
 
 export default userRouter;

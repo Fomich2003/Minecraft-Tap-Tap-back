@@ -1,28 +1,25 @@
-import fs from "node:fs";
-import User from "../../repositories/User.repository.js";
+import referralService from "../../services/referral.service.js";
 
-const texts = JSON.parse(fs.readFileSync(new URL("../../data/bot-texts.json", import.meta.url), "utf8"));
-const DEFAULT_TEXTS = { prompt: "Натисни кнопку, щоб відкрити гру", play: "Грати" };
 const GAME_URL = process.env.WEB_APP_URL || "https://tap-tap.fomka.online/";
-
-// Новий гравець ще не обрав мову в грі, тому береться мова його Telegram
-function textsFor(code = "") {
-    return texts[code] ?? texts[code.split("-")[0]] ?? DEFAULT_TEXTS;
-}
+const PROMPT = "Welcome to Minecraft Tap-Tap! Mine blocks, craft items, fight bosses and climb the leaderboard. Press the button to play.";
+const INVITED_PROMPT = "Your friend invited you to Minecraft Tap-Tap! Press the button to open the game and get your welcome bonus.";
+const PLAY_LABEL = "Play";
 
 async function startCMD(ctx) {
     // Кнопка Mini App працює лише в особистому чаті з бото
     if (ctx.chat?.type !== "private") return;
     try {
         // Збій бази не має лишати гравця без запрошення
-        const user = await User.findByTelegramId(ctx.from.id).catch(() => null);
-        const { prompt, play } = textsFor(user?.language ?? ctx.from.language_code);
-        await ctx.reply(prompt, {
+        const invited = await referralService.register(ctx.from, ctx.payload).catch(error => {
+            console.log("[bot-referral]", error.message);
+            return false;
+        });
+        await ctx.reply(invited ? INVITED_PROMPT : PROMPT, {
             reply_markup: {
                 inline_keyboard: [
                     [
                         {
-                            text: play,
+                            text: PLAY_LABEL,
                             web_app: {
                                 url: GAME_URL
                             }
@@ -37,6 +34,7 @@ async function startCMD(ctx) {
 }
 
 export default startCMD
+export { GAME_URL, PLAY_LABEL }
 
 
 // const exUser = await User.findByTelegramId(userInfo.id);
