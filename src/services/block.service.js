@@ -1,3 +1,4 @@
+import { cardCoinBonus, cardDropBonus, cardXp, deckBonus, rollCard } from "../data/cards.js";
 import { baseDropChance, dropChance, dropsPerBlock, toPercent } from "../data/drops.js";
 import { blockXp, levelFromXp } from "../data/experience.js";
 import { locationOf } from "../data/locations.js";
@@ -10,6 +11,7 @@ import Item from "../repositories/Item.repository.js";
 import { addInventoryQuantity } from "../utils/inventory-stacks.js";
 import { tapBlockPrice } from "../data/tap-blocks.js";
 import { getRandomDropItems } from "../utils/random.js";
+import cardService from "./card.service.js";
 import catalogService from "./catalog.service.js";
 import loadoutService, { equippedTool, tapPower, wearTool } from "./loadout.service.js";
 import questService from "./quest.service.js";
@@ -24,10 +26,10 @@ const PROGRESS_RESET_MS = 5000;
 const FORTUNE_EXTRA_ITEM = .15;
 
 // Спершу вирішується, чи блок щось дав. Шовковий дотик забирає сам блок, а фортуна ще й додає предмети з руд
-function rollDrops(tapItem, brokenBlocks, tool, effects, itemById) {
+function rollDrops(tapItem, brokenBlocks, tool, effects, itemById, cardBonus) {
     const silkTouch = tool?.enchantments.silk_touch;
     const fortune = isOreBlock(tapItem.slug) ? tool?.enchantments.fortune ?? 0 : 0;
-    const chance = dropChance(tapItem.slug, tool, effects);
+    const chance = dropChance(tapItem.slug, tool, effects, cardBonus);
     const drops = new Map();
     let missed = 0;
 
@@ -81,11 +83,12 @@ class BlockService {
         const effects = activeEffects(user);
         const tool = equippedTool(user, await Inventory.findPlainByUserId(userId), blockToolKind(slug), catalog);
         const power = tapPower(slug, tapItem.tapsToBreak, tool, effects);
+        const cards = deckBonus(user);
 
-        const applied = await this.spendTapTokens(userId, slug, requested, tapItem, power, effects);
+        const applied = await this.spendTapTokens(userId, slug, requested, tapItem, power, effects, { coinBonus: cardCoinBonus(cards, slug) });
         if (!applied) return { success: false, message: "Занадто швидко", status: 429 };
 
-        const { drops, missed } = rollDrops(tapItem, applied.brokenBlocks, tool, effects, itemById);
+        const { drops, missed } = rollDrops(tapItem, applied.brokenBlocks, tool, effects, itemById, cardDropBonus(cards, slug, "block"));
         const wear = tool ? toolWear(tool, applied.brokenBlocks, effects) : 0;
         let toolBroken = false;
         if (drops.length || wear) {
@@ -96,8 +99,9 @@ class BlockService {
         }
 
         const dropped = drops.reduce((sum, { quantity }) => sum + quantity, 0);
-        const gainedXp = (applied.brokenBlocks - missed) * blockXp(slug);
+        const gainedXp = cardXp(cards, (applied.brokenBlocks - missed) * blockXp(slug));
         if (gainedXp > 0) await User.addXp(userId, gainedXp);
+        const card = rollCard(slug, applied.taps, effects) ? await cardService.grant(userId, slug) : null;
         await questService.track(user, {
             taps: applied.taps, coins: applied.coins, broken: applied.brokenBlocks, drops: dropped, ores: isOreBlock(slug) ? dropped : 0,
         });
@@ -107,12 +111,12 @@ class BlockService {
         return {
             success: true, status: 200, user: updatedUser, inventory, loadout, acceptedTaps: applied.taps,
             drops: drops.map(({ item, quantity }) => ({ slug: item.slug, quantity })), missed,
-            toolBroken: toolBroken ? tool.slug : null, message: `+${applied.coins}`, questsReady: questService.readyCount(updatedUser),
+            toolBroken: toolBroken ? tool.slug : null, message: `+${applied.coins}`, questsReady: questService.readyCount(updatedUser), card,
         };
     }
 
     // Швидкість тапів рахує сервер: клієнт не може виписати собі довільну кількість монет
-    async spendTapTokens(userId, slug, requested, tapItem, power, effects, { keepProgress = false } = {}) {
+    async spendTapTokens(userId, slug, requested, tapItem, power, effects, { keepProgress = false, coinBonus = 0 } = {}) {
         for (let attempt = 0; attempt < MAX_TAP_ATTEMPTS; attempt += 1) {
             const user = await User.findTapState(userId);
             const now = Date.now();
@@ -124,7 +128,7 @@ class BlockService {
             const idle = user.lastTapAt && now - user.lastTapAt.getTime() > PROGRESS_RESET_MS;
             const progress = (idle && !keepProgress ? 0 : user.tapProgress?.get(slug) ?? 0) + taps * power;
             const perBlock = Math.max(1, tapItem.tapsToBreak ?? 1);
-            const coins = taps * coinsWithEffects(coinsPerTap(user.tapLevel ?? 0), effects);
+            const coins = taps * coinsWithEffects(coinsPerTap(user.tapLevel ?? 0), effects, coinBonus);
             const updated = await User.applyTaps(userId, user.lastTapAt, user.tapLevel ?? 0, {
                 coins, tokens: tokens - taps, now: new Date(now), slug, progress: progress % perBlock,
             });

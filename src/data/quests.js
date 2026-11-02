@@ -52,6 +52,7 @@ export const PERMANENT_QUESTS = [
     ...chain("level", [[1, 500], [3, 3000, stack("iron_ingot", 16)], [5, 10000, stack("diamond", 4)], [10, 100000, stack("netherite_ingot", 2)]]),
     ...chain("blocks", [[3, 300], [10, 3000], [20, 15000, stack("emerald", 16)], [29, 80000, stack("nether_star")]]),
     ...chain("stations", [[3, 1500], [7, 6000], [12, 30000, stack("diamond", 16)]]),
+    ...chain("cards", [[5, 1000], [20, 8000, stack("emerald", 8)], [45, 40000, stack("diamond", 8)], [77, 150000, stack("nether_star")]]),
 ];
 
 export const dailyCoins = (quest, level) => quest.coins * (1 + level);

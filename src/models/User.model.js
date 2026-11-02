@@ -110,6 +110,14 @@ const UserSchema = new mongoose.Schema({
     wither: { active: Boolean, readyAt: Date, expiresAt: Date },
     ender_dragon: { active: Boolean, readyAt: Date, expiresAt: Date }
   },
+  // Колекційні карти: slug блока чи моба і скільки копій зібрано. Рівень карти виводиться з кількості
+  cards: {
+    type: Map,
+    of: Number,
+    default: {}
+  },
+  // Slug карт у колоді. Кількість слотів залежить від рівня досвіду
+  deck: [String],
   // Лічильники постійних квестів за всю гру
   questStats: {
     type: Map,

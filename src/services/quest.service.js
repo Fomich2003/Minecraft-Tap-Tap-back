@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { ownedCount } from "../data/cards.js";
 import { describeXp } from "../data/experience.js";
 import { DAILY_QUESTS, DAILY_TIERS, PERMANENT_QUESTS, dailyCoins, questXp } from "../data/quests.js";
 import Inventory from "../repositories/Inventory.repository.js";
@@ -27,6 +28,7 @@ const STATE_METRICS = {
     level: { value: user => user.tapLevel ?? 0, filter: target => ({ tapLevel: { $gte: target } }) },
     blocks: { value: user => user.tapBlocks?.length ?? 0, filter: target => ({ [`tapBlocks.${target - 1}`]: { $exists: true } }) },
     stations: { value: user => user.stations?.length ?? 0, filter: target => ({ [`stations.${target - 1}`]: { $exists: true } }) },
+    cards: { value: user => ownedCount(user), filter: target => ({ $expr: { $gte: [{ $size: { $objectToArray: { $ifNull: ["$cards", {}] } } }, target] } }) },
 };
 
 function canDo(quest, user) {

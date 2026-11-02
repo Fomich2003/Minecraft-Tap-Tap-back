@@ -95,8 +95,9 @@ export function mergeEffects(current, gained, now = Date.now()) {
 
 const levelOf = (effects, id) => effects.find(effect => effect.id === id)?.level ?? 0;
 
-export function coinsWithEffects(baseCoins, effects) {
-    const bonus = levelOf(effects, "strength") * STRENGTH_COIN_BONUS + (levelOf(effects, "saturation") ? SATURATION_COIN_BONUS : 0);
+// extra приходить від карт у колоді й додається до бонусу ефектів, а не множиться на нього
+export function coinsWithEffects(baseCoins, effects, extra = 0) {
+    const bonus = levelOf(effects, "strength") * STRENGTH_COIN_BONUS + (levelOf(effects, "saturation") ? SATURATION_COIN_BONUS : 0) + extra;
     return Math.ceil(baseCoins * (1 + bonus));
 }
 

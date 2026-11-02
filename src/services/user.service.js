@@ -3,6 +3,7 @@ import { levelFromXp } from "../data/experience.js";
 import { dailyAward, describeUpgrade, upgradeCost } from "../data/upgrades.js";
 import Inventory from "../repositories/Inventory.repository.js";
 import User from "../repositories/User.repository.js";
+import cardService from "./card.service.js";
 import catalogService from "./catalog.service.js";
 import inventoryService from "./inventory.service.js";
 import loadoutService from "./loadout.service.js";
@@ -37,7 +38,8 @@ class UserService {
                 const { itemBySlug } = await catalogService.get();
                 await Inventory.addItems(userId, loot.map(({ slug, quantity }) => ({ item: itemBySlug.get(slug), quantity })).filter(entry => entry.item));
                 const inventory = await Inventory.findByUserId(userId);
-                return { success: true, user: updatedUser, status: 200, message: "Нагороду отримано", loot, inventory };
+                const card = await cardService.grantDaily(current);
+                return { success: true, user: updatedUser, status: 200, message: "Нагороду отримано", loot, inventory, card };
             }
 
             const user = await User.findById(userId)

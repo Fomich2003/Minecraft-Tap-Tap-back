@@ -1,3 +1,4 @@
+import { cardCoinBonus, cardDropBonus, cardXp, deckBonus, rollCard } from "../data/cards.js";
 import { activeEffects, luckyDropChance } from "../data/effects.js";
 import { levelFromXp } from "../data/experience.js";
 import { locationOf } from "../data/locations.js";
@@ -6,6 +7,7 @@ import Inventory from "../repositories/Inventory.repository.js";
 import User from "../repositories/User.repository.js";
 import { addInventoryQuantity } from "../utils/inventory-stacks.js";
 import blockService, { toolWear } from "./block.service.js";
+import cardService from "./card.service.js";
 import catalogService from "./catalog.service.js";
 import loadoutService, { equippedTool, wearTool } from "./loadout.service.js";
 import questService from "./quest.service.js";
@@ -38,8 +40,8 @@ function addDrops(drops, itemBySlug, slug, quantity) {
 }
 
 // Бонуси множать шанс: рідкісний дроп лишається рідкісним навіть із найкращим мечем
-function rollKills(mob, kills, sword, effects, itemBySlug) {
-    const multiplier = 1 + swordDropBonus(sword?.enchantments) + luckyDropChance(effects);
+function rollKills(mob, kills, sword, effects, itemBySlug, cardBonus) {
+    const multiplier = 1 + swordDropBonus(sword?.enchantments) + luckyDropChance(effects) + cardBonus;
     const looting = sword?.enchantments.looting ?? 0;
     const drops = new Map();
     let missed = 0;
@@ -134,14 +136,17 @@ class MobService {
         const effects = activeEffects(user);
         const sword = equippedTool(user, await Inventory.findPlainByUserId(userId), "sword", catalog);
         const damage = Math.min(mob.hp, mobDamage(sword, effects));
+        const cards = deckBonus(user);
 
-        const applied = await blockService.spendTapTokens(userId, mobProgressKey(slug), requested, { tapsToBreak: mob.hp }, damage, effects, { keepProgress: Boolean(mob.boss) });
+        const applied = await blockService.spendTapTokens(userId, mobProgressKey(slug), requested, { tapsToBreak: mob.hp }, damage, effects, {
+            keepProgress: Boolean(mob.boss), coinBonus: cardCoinBonus(cards, slug),
+        });
         if (!applied) return fail(429, "Занадто швидко");
 
         // Бос гине один раз за призов, навіть якщо пачка ударів вийшла більшою за його здоров'я
         const won = mob.boss && applied.brokenBlocks > 0 ? await User.finishBoss(userId, slug) : null;
         const kills = mob.boss ? (won ? 1 : 0) : applied.brokenBlocks;
-        const rolled = mob.boss ? { drops: won ? rollBossLoot(mob, catalog.itemBySlug) : [], missed: 0 } : rollKills(mob, kills, sword, effects, catalog.itemBySlug);
+        const rolled = mob.boss ? { drops: won ? rollBossLoot(mob, catalog.itemBySlug) : [], missed: 0 } : rollKills(mob, kills, sword, effects, catalog.itemBySlug, cardDropBonus(cards, slug, "mob"));
         const { drops, missed } = rolled;
 
         const wear = sword ? toolWear(sword, kills, effects) : 0;
@@ -157,8 +162,10 @@ class MobService {
         if (bonusCoins) await User.incrementBalance(userId, bonusCoins);
         if (kills) {
             await User.addMobKills(userId, slug, kills);
-            await User.addXp(userId, kills * mob.xp);
+            await User.addXp(userId, cardXp(cards, kills * mob.xp));
         }
+        // Карта боса гарантована перемогою, звичайні моби дають її з шансом на кожен удар
+        const card = won || (!mob.boss && rollCard(slug, applied.taps, effects)) ? await cardService.grant(userId, slug) : null;
 
         const dropped = drops.reduce((sum, { quantity }) => sum + quantity, 0);
         await questService.track(user, { taps: applied.taps, coins: applied.coins, kills, drops: dropped, bosses: won ? 1 : 0 });
@@ -169,7 +176,7 @@ class MobService {
             success: true, status: 200, user: updatedUser, inventory, loadout, acceptedTaps: applied.taps,
             drops: drops.map(({ item, quantity }) => ({ slug: item.slug, quantity })), missed,
             toolBroken: toolBroken ? sword.slug : null, message: `+${applied.coins}`, questsReady: questService.readyCount(updatedUser),
-            bossDefeated: won ? { slug, coins: bonusCoins } : null,
+            bossDefeated: won ? { slug, coins: bonusCoins } : null, card,
         };
     }
 }

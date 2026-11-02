@@ -11,6 +11,7 @@ import inventoryRouter from "./src/routes/inventory.route.js";
 import stationRouter from "./src/routes/station.route.js";
 import questRouter from "./src/routes/quest.route.js";
 import mobRouter from "./src/routes/mob.route.js";
+import cardRouter from "./src/routes/card.route.js";
 
 import launchBot from "./src/bot/bot.js";
 import connectDB from "./src/utils/connectDB.js";
@@ -39,6 +40,7 @@ app.use("/api/inventory", inventoryRouter);
 app.use("/api/station", stationRouter);
 app.use("/api/quest", questRouter);
 app.use("/api/mob", mobRouter);
+app.use("/api/card", cardRouter);
 
 // База і бот 
 connectDB();

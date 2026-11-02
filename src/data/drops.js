@@ -28,10 +28,10 @@ export function toolDropBonus(tier, enchantments = {}) {
 }
 
 // Бонуси множать базовий шанс: додані до нього, вони робили алмазну руду майже такою ж щедрою, як земля
-export function dropChance(slug, tool, effects) {
+export function dropChance(slug, tool, effects, cardBonus = 0) {
     const base = BASE_CHANCE[slug] ?? DEFAULT_CHANCE;
     const hands = !tool && blockToolKind(slug) === "pickaxe" ? BARE_HANDS_FACTOR : 1;
-    return base * hands * (1 + (tool?.dropBonus ?? 0) + luckyDropChance(effects));
+    return base * hands * (1 + (tool?.dropBonus ?? 0) + luckyDropChance(effects) + cardBonus);
 }
 
 export const baseDropChance = slug => BASE_CHANCE[slug] ?? DEFAULT_CHANCE;

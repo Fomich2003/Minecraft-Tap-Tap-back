@@ -201,6 +201,19 @@ class UserRepository {
     return await UserModel.updateOne({ _id: userId }, { $inc: { [`mobKills.${slug}`]: kills } });
   }
 
+  // Умова на кількість копій у самому запиті: паралельні дропи не переповнять карту понад максимум
+  async addCard(userId, slug, maxCopies) {
+    return await UserModel.findOneAndUpdate(
+      { _id: userId, [`cards.${slug}`]: { $not: { $gte: maxCopies } } },
+      { $inc: { [`cards.${slug}`]: 1 } },
+      { new: true, projection: { cards: 1 } }
+    );
+  }
+
+  async setDeck(userId, deck) {
+    return await UserModel.findByIdAndUpdate(userId, { $set: { deck } }, { new: true });
+  }
+
   async setActiveStation(userId, slug) {
     return await UserModel.findByIdAndUpdate(userId, { $set: { activeStation: slug } }, { new: true });
   }

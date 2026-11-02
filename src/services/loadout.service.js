@@ -1,3 +1,4 @@
+import { cardCoinBonus, cardDropBonus, deckBonus } from "../data/cards.js";
 import { dropChance, toolDropBonus, toPercent } from "../data/drops.js";
 import { activeEffects, coinsWithEffects, consumableContainer, consumableEffects, isXpBottle, mergeEffects, powerFromEffects } from "../data/effects.js";
 import { describeXp, XP_BOTTLE_POINTS } from "../data/experience.js";
@@ -60,12 +61,20 @@ class LoadoutService {
     // Клієнт нічого не рахує сам: сервер одразу повідомляє силу удару по кожному блоку гравця
     describe(user, inventory, catalog) {
         const effects = activeEffects(user);
+        const cards = deckBonus(user);
+        const baseCoins = coinsPerTap(user.tapLevel ?? 0);
         const tools = Object.fromEntries(TOOL_KINDS.map(kind => [kind, equippedTool(user, inventory, kind, catalog)]));
         const blocks = Object.fromEntries((user.tapBlocks ?? []).map(({ slug }) => {
             const kind = blockToolKind(slug);
-            return [slug, { kind, power: tapPower(slug, catalog.itemBySlug.get(slug)?.tapsToBreak, tools[kind], effects), dropChance: toPercent(dropChance(slug, tools[kind], effects)), location: locationOf(slug).id }];
+            const chance = dropChance(slug, tools[kind], effects, cardDropBonus(cards, slug, "block"));
+            return [slug, { kind, power: tapPower(slug, catalog.itemBySlug.get(slug)?.tapsToBreak, tools[kind], effects), dropChance: toPercent(chance), location: locationOf(slug).id }];
         }));
-        return { tools, blocks, effects, experience: describeXp(user), damage: mobDamage(tools.sword, effects), coinsPerTap: coinsWithEffects(coinsPerTap(user.tapLevel ?? 0), effects) };
+        // Карта в колоді підсилює свій блок чи моба, тому там тап дорожчий за звичайний
+        const coinsBySlug = Object.fromEntries(Object.keys(cards.resonance).map(slug => [slug, coinsWithEffects(baseCoins, effects, cardCoinBonus(cards, slug))]));
+        return {
+            tools, blocks, effects, experience: describeXp(user), damage: mobDamage(tools.sword, effects),
+            coinsPerTap: coinsWithEffects(baseCoins, effects, cards.coins), coinsBySlug,
+        };
     }
 
     options(user, inventory, catalog) {
