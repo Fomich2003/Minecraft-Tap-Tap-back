@@ -1,5 +1,6 @@
 import stationService from "../services/station.service.js";
 import jobService from "../services/job.service.js";
+import expeditionService from "../services/expedition.service.js";
 import { handle } from "../utils/http.js";
 
 // Тіло може бути порожнім (локальний тестовий вхід), тоді всі поля просто відсутні
@@ -19,8 +20,14 @@ const startBrewing = handle(req => jobService.startBrewing(req.user, req.params.
 const fillBottles = handle(req => jobService.fillBottles(req.user, req.params.slug, body(req).slots, body(req).count))
 const collectJob = handle(req => jobService.collect(req.user, req.params.slug))
 const cancelJob = handle(req => jobService.cancel(req.user, req.params.slug))
+const expeditionStatus = handle(req => expeditionService.status(req.user, req.params.slug))
+const expeditionPreview = handle(req => expeditionService.preview(req.user, req.params.slug, body(req).map))
+const startExpedition = handle(req => expeditionService.start(req.user, req.params.slug, body(req).map))
+const collectExpedition = handle(req => expeditionService.collect(req.user, req.params.slug))
+const recallExpedition = handle(req => expeditionService.recall(req.user, req.params.slug))
 
 export {
     listStations, buyStation, activateStation, previewStation, applyStation, installBookshelves, listRecipes,
     jobStatus, previewCooking, startCooking, startBrewing, fillBottles, collectJob, cancelJob,
+    expeditionStatus, expeditionPreview, startExpedition, collectExpedition, recallExpedition,
 }

@@ -170,3 +170,26 @@ describe("Щоденна скриня", () => {
         }
     });
 });
+
+describe("Експедиції", async () => {
+    const { expeditionPlan, rollExpedition, MAX_MAP_SCALE } = await import("../src/data/expeditions.js");
+
+    test("масштаб подовжує похід, але здобич за годину та сама", () => {
+        const small = expeditionPlan("caves", 0);
+        const large = expeditionPlan("caves", MAX_MAP_SCALE);
+        assert.equal(large.ms, small.ms * (MAX_MAP_SCALE + 1));
+        assert.equal(large.finds / large.ms, small.finds / small.ms);
+        assert.equal(expeditionPlan("caves", 99).scale, MAX_MAP_SCALE);
+        assert.equal(expeditionPlan("nowhere", 0), null);
+    });
+
+    test("здобич лише з предметів каталогу, без монет", () => {
+        let seed = 7;
+        const random = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+        const itemBySlug = new Map(["cobblestone", "rotten_flesh", "bone", "string", "diamond", "iron_ingot", "name_tag", "golden_apple", "arrow", "gunpowder"].map(slug => [slug, {}]));
+        const loot = rollExpedition(expeditionPlan("caves", MAX_MAP_SCALE), { itemBySlug, dropFor: () => "cobblestone" }, random);
+        assert.ok(loot.items.length > 0);
+        assert.ok(loot.items.every(entry => itemBySlug.has(entry.slug) && entry.quantity > 0));
+        assert.equal(loot.coins, undefined);
+    });
+});

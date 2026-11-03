@@ -117,9 +117,78 @@ function cropFace(source) {
     return PNG.sync.write(face);
 }
 
+// Обличчя скіна: голова й шар капелюха поверх неї, 8×8
+const SKINS = ["steve", "alex", "ari", "efe", "kai", "makena", "noor", "sunny", "zuri"];
+
+function skinFace(jar, name) {
+    const skin = PNG.sync.read(jar.read(`assets/minecraft/textures/entity/player/wide/${name}.png`));
+    const face = new PNG({ width: 8, height: 8 });
+    for (let y = 0; y < 8; y += 1) {
+        for (let x = 0; x < 8; x += 1) {
+            const base = ((8 + y) * skin.width + 8 + x) * 4;
+            const hat = ((8 + y) * skin.width + 40 + x) * 4;
+            const alpha = skin.data[hat + 3] / 255;
+            const target = (y * 8 + x) * 4;
+            for (let channel = 0; channel < 3; channel += 1) {
+                face.data[target + channel] = Math.round(skin.data[hat + channel] * alpha + skin.data[base + channel] * (1 - alpha));
+            }
+            face.data[target + 3] = 255;
+        }
+    }
+    return PNG.sync.write(face);
+}
+
+// Кадри годинника гри однією стрічкою: сцена показує той, що відповідає часу доби
+function clockStrip(jar) {
+    const frames = Array.from({ length: 64 }, (_, index) => itemTexture(jar, `clock_${String(index).padStart(2, "0")}`));
+    const strip = new PNG({ width: TILE, height: TILE * frames.length });
+    frames.forEach((frame, index) => PNG.bitblt(frame, strip, 0, 0, TILE, TILE, 0, index * TILE));
+    return PNG.sync.write(strip);
+}
+
+const MOON_PHASES = ["full_moon", "waning_gibbous", "third_quarter", "waning_crescent", "new_moon", "waxing_crescent", "first_quarter", "waxing_gibbous"];
+// Текстура, з якої видно кожен верстак: на панелі вона стоїть у шапці
+const STATION_FACES = {
+    crafting_table: "crafting_table_front", campfire: "campfire_log_lit", furnace: "furnace_front_on", stonecutter: "stonecutter_side",
+    smoker: "smoker_front_on", loom: "loom_front", cartography_table: "cartography_table_side3", grindstone: "grindstone_side",
+    blast_furnace: "blast_furnace_front_on", smithing_table: "smithing_table_front", anvil: "anvil_top", brewing_stand: "brewing_stand_base",
+    enchanting_table: "enchanting_table_top",
+};
+const MAP_DECORATIONS = ["player", "red_x", "mineshaft", "ancient_city", "trial_chambers", "plains_village", "red_marker", "target_point"];
+
+function firstFrame(source) {
+    const image = PNG.sync.read(source);
+    if (image.height === image.width) return source;
+    const frame = new PNG({ width: image.width, height: image.width });
+    PNG.bitblt(image, frame, 0, 0, image.width, image.width, 0, 0);
+    return PNG.sync.write(frame);
+}
+
+async function exportSceneAssets(jar) {
+    const write = async (folder, name, data) => {
+        await fs.mkdir(path.join(publicDir, folder), { recursive: true });
+        await fs.writeFile(path.join(publicDir, folder, `${name}.png`), data);
+    };
+    const environment = file => jar.read(`assets/minecraft/textures/environment/${file}.png`);
+    await write("world", "sun", environment("celestial/sun"));
+    for (const [index, phase] of MOON_PHASES.entries()) await write("world", `moon_${index}`, environment(`celestial/moon/${phase}`));
+    await write("world", "clouds", environment("clouds"));
+    await write("world", "rain", environment("rain"));
+    await write("world", "snow", environment("snow"));
+    await write("world", "clock_strip", clockStrip(jar));
+    for (const name of SKINS) await write("faces", name, skinFace(jar, name));
+    for (const [slug, file] of Object.entries(STATION_FACES)) await write("stations", slug, firstFrame(jar.read(`assets/minecraft/textures/block/${file}.png`)));
+    await write("map", "background", jar.read("assets/minecraft/textures/map/map_background.png"));
+    for (const name of MAP_DECORATIONS) {
+        const file = `assets/minecraft/textures/map/decorations/${name}.png`;
+        if (jar.names.includes(file)) await write("map", name, jar.read(file));
+    }
+}
+
 async function main() {
     const { jarPath } = await prepareMinecraftData(version);
     const jar = openJar(jarPath);
+    await exportSceneAssets(jar);
     await fs.mkdir(path.join(publicDir, "banners"), { recursive: true });
 
     const ids = jar.names.map(name => name.match(/^data\/minecraft\/banner_pattern\/([^/]+)\.json$/)?.[1]).filter(Boolean);

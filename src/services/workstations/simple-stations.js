@@ -1,3 +1,7 @@
+import { levelFromXp } from "../../data/experience.js";
+import { MAX_MAP_SCALE } from "../../data/expeditions.js";
+import { LOCATIONS } from "../../data/locations.js";
+
 const TRIM_MATERIALS = {
     amethyst_shard: "amethyst", copper_ingot: "copper", diamond: "diamond", emerald: "emerald", gold_ingot: "gold",
     iron_ingot: "iron", lapis_lazuli: "lapis", netherite_ingot: "netherite", quartz: "quartz", redstone: "redstone", resin_brick: "resin",
@@ -69,18 +73,33 @@ export const loomStation = {
     },
 };
 
+// Номер мапи з її змісту: попередній перегляд і створення дають ту саму мапу, а копії лишаються копіями
+function mapId(userId, location) {
+    let hash = 2166136261;
+    for (const char of `${userId}:${location}:${Math.floor(Date.now() / 65536)}`) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619) >>> 0;
+    return hash & 0x7fffffff;
+}
+
+// Мапа креслиться для відкритої локації: саме з неї розвідник принесе здобич
+function locationChoices(user) {
+    const level = levelFromXp(user?.xpTotal ?? 0);
+    return LOCATIONS.map(location => ({ id: location.id, level: location.level, open: level >= location.level }));
+}
+
 export const cartographyStation = {
     slots: () => ["map", "addition"],
 
-    preview({ slots }) {
+    preview({ slots, user, options }) {
         const { map, addition } = slots;
         if (!map) return null;
 
-        if (map.slug === "map" && !addition) {
-            return {
-                result: { slug: "filled_map", quantity: 1, components: { map_id: Math.floor(Math.random() * 2 ** 31), map_scale: 0 } },
-                consume: [{ cell: map, quantity: 1 }],
-            };
+        const charting = !addition && (map.slug === "map" || (map.slug === "filled_map" && !map.components?.map_location));
+        if (charting) {
+            const choices = locationChoices(user);
+            const chosen = choices.find(choice => choice.id === options?.location && choice.open);
+            if (!chosen) return { choices };
+            const components = { ...map.components, map_id: map.components?.map_id ?? mapId(user?._id, chosen.id), map_scale: map.components?.map_scale ?? 0, map_location: chosen.id };
+            return { choices, result: { slug: "filled_map", quantity: 1, components }, consume: [{ cell: map, quantity: 1 }] };
         }
         if (map.slug !== "filled_map" || !addition) return null;
 
@@ -90,7 +109,7 @@ export const cartographyStation = {
             return { result: { slug: map.slug, quantity: 1, components: { ...map.components, map_locked: true } }, consume };
         }
         const scale = map.components?.map_scale ?? 0;
-        if (addition.slug === "paper" && scale < 4 && !map.components?.map_locked) {
+        if (addition.slug === "paper" && scale < MAX_MAP_SCALE && !map.components?.map_locked) {
             return { result: { slug: map.slug, quantity: 1, components: { ...map.components, map_scale: scale + 1 } }, consume };
         }
         return null;

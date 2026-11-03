@@ -253,6 +253,111 @@ describe("API", { skip }, () => {
         assert.ok(!data.text);
     });
 
+    describe("експедиції столу картографа", () => {
+        const id = TEST_IDS[1];
+        const STATION = "/station/cartography_table";
+        let StationJob, InventoryRepo;
+
+        const stackOf = async (slug, match = () => true) => {
+            const { data } = await call("/user/profile", {}, { id });
+            return data.inventory.items.find(stack => stack.itemId?.slug === slug && match(stack));
+        };
+        const give = async (slug, quantity) => {
+            const item = await Item.findOne({ slug }).lean();
+            await InventoryRepo.addItems((await userOf(id))._id, [{ item, quantity }]);
+        };
+        const chart = async location => {
+            const map = await stackOf("map");
+            return call(`${STATION}/apply`, { slots: { map: map._id }, options: { location } }, { id });
+        };
+        const backdate = async () => {
+            const user = await userOf(id);
+            await StationJob.updateOne({ userId: user._id, station: "cartography_table" }, { $set: { startedAt: new Date(Date.now() - 24 * 3600000) } });
+        };
+
+        before(async () => {
+            ({ default: StationJob } = await import("../src/models/StationJob.model.js"));
+            ({ default: InventoryRepo } = await import("../src/repositories/Inventory.repository.js"));
+            await call("/user/profile", {}, { id });
+            await User.updateOne({ telegramId: id }, { $addToSet: { stations: "cartography_table" }, $set: { xpTotal: 0 } });
+            await StationJob.deleteMany({ userId: (await userOf(id))._id });
+            await give("map", 3);
+            await give("glass_pane", 1);
+        });
+
+        after(async () => {
+            const user = await userOf(id);
+            if (user) await StationJob.deleteMany({ userId: user._id });
+        });
+
+        test("мапа креслиться лише для відкритої локації", async () => {
+            const map = await stackOf("map");
+            const preview = await call(`${STATION}/preview`, { slots: { map: map._id } }, { id });
+            assert.equal(preview.status, 200);
+            assert.deepEqual(preview.data.preview.choices.map(choice => [choice.id, choice.open]).slice(0, 2), [["surface", true], ["caves", false]]);
+            assert.equal(preview.data.preview.result, undefined);
+
+            const closed = await chart("caves");
+            assert.equal(closed.status, 400);
+            const open = await chart("surface");
+            assert.equal(open.status, 200);
+            assert.equal(open.data.result.components.map_location, "surface");
+        });
+
+        test("похід забирає мапу, а здобич видається лише один раз", async () => {
+            const filled = await stackOf("filled_map", stack => !stack.components?.map_locked);
+            const plan = await call(`${STATION}/expedition/preview`, { map: filled._id }, { id });
+            assert.equal(plan.data.plan.location, "surface");
+            assert.equal(plan.data.plan.finds, 3);
+
+            const started = await call(`${STATION}/expedition/start`, { map: filled._id }, { id });
+            assert.equal(started.status, 200);
+            assert.ok(!started.data.inventory.items.some(stack => String(stack._id) === String(filled._id)));
+            assert.equal((await call(`${STATION}/expedition/start`, { map: filled._id }, { id })).status, 409);
+            assert.equal((await call(`${STATION}/expedition/collect`, {}, { id })).status, 400);
+
+            await backdate();
+            const before = await userOf(id);
+            const results = await Promise.all([1, 2, 3].map(() => call(`${STATION}/expedition/collect`, {}, { id })));
+            const paid = results.filter(result => result.status === 200);
+            assert.equal(paid.length, 1);
+            assert.equal(paid[0].data.loot.mapReturned, false);
+            assert.equal(paid[0].data.loot.xp, 3);
+            const after = await userOf(id);
+            assert.equal(after.balance, before.balance, "похід не дає монет");
+            assert.ok(after.xpTotal >= before.xpTotal + 3);
+        });
+
+        test("скляна мапа повертається, відкликаний похід віддає мапу без здобичі", async () => {
+            await chart("surface");
+            const fresh = await stackOf("filled_map", stack => !stack.components?.map_locked);
+            const pane = await stackOf("glass_pane");
+            const locked = await call(`${STATION}/apply`, { slots: { map: fresh._id, addition: pane._id } }, { id });
+            assert.equal(locked.data.result.components.map_locked, true);
+
+            const lockedMap = await stackOf("filled_map", stack => stack.components?.map_locked);
+            await call(`${STATION}/expedition/start`, { map: lockedMap._id }, { id });
+            await backdate();
+            const collected = await call(`${STATION}/expedition/collect`, {}, { id });
+            assert.equal(collected.data.loot.mapReturned, true);
+            assert.ok(await stackOf("filled_map", stack => stack.components?.map_locked));
+
+            const again = await stackOf("filled_map", stack => stack.components?.map_locked);
+            await call(`${STATION}/expedition/start`, { map: again._id }, { id });
+            const recalled = await call(`${STATION}/expedition/recall`, {}, { id });
+            assert.equal(recalled.status, 200);
+            assert.ok(await stackOf("filled_map", stack => stack.components?.map_locked));
+            assert.equal((await call(`${STATION}/expedition`, {}, { id })).data.expedition, null);
+        });
+
+        test("скарби існують у каталозі", async () => {
+            const { TREASURES } = await import("../src/data/expeditions.js");
+            const slugs = Object.values(TREASURES).flat().map(([slug]) => slug);
+            const found = await Item.find({ slug: { $in: slugs } }, "slug").lean();
+            assert.deepEqual([...new Set(slugs)].filter(slug => !found.some(item => item.slug === slug)), []);
+        });
+    });
+
     test("ліміт запитів гравця — 429", async () => {
         playerLimiter.reset();
         let limited = 0;

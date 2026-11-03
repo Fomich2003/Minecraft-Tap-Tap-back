@@ -3,6 +3,7 @@ import { checkTgProfile } from "../middlewares/verify.middleware.js";
 import {
     listStations, buyStation, activateStation, previewStation, applyStation, installBookshelves, listRecipes,
     jobStatus, previewCooking, startCooking, startBrewing, fillBottles, collectJob, cancelJob,
+    expeditionStatus, expeditionPreview, startExpedition, collectExpedition, recallExpedition,
 } from "../controllers/station.controller.js";
 
 const stationRouter = express.Router();
@@ -23,5 +24,10 @@ stationRouter.post("/:slug/brew", startBrewing);
 stationRouter.post("/:slug/fill", fillBottles);
 stationRouter.post("/:slug/collect", collectJob);
 stationRouter.post("/:slug/cancel", cancelJob);
+stationRouter.post("/:slug/expedition", expeditionStatus);
+stationRouter.post("/:slug/expedition/preview", expeditionPreview);
+stationRouter.post("/:slug/expedition/start", startExpedition);
+stationRouter.post("/:slug/expedition/collect", collectExpedition);
+stationRouter.post("/:slug/expedition/recall", recallExpedition);
 
 export default stationRouter;
