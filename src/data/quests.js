@@ -28,6 +28,27 @@ export const DAILY_QUESTS = [
     quest("daily_brewed", 2, "brewed", 3, 1200, [{ slug: "golden_apple", quantity: 1 }], "brewing"),
 ];
 
+// Тижневі квести: по одному кожного рівня на тиждень. Цілі приблизно семикратні щоденним,
+// а нагорода більша за суму семи днів, бо їх треба тримати в голові весь тиждень
+export const WEEKLY_TIERS = [0, 1, 2];
+
+export const WEEKLY_QUESTS = [
+    quest("weekly_taps", 0, "taps", 5000, 1500),
+    quest("weekly_broken", 0, "broken", 400, 1500),
+    quest("weekly_drops", 0, "drops", 250, 1500),
+    quest("weekly_awards", 0, "awards", 5, 1200),
+
+    quest("weekly_kills", 1, "kills", 300, 3500, [{ slug: "iron_ingot", quantity: 8 }]),
+    quest("weekly_crafts", 1, "crafts", 100, 3000, [{ slug: "iron_ingot", quantity: 8 }]),
+    quest("weekly_sold", 1, "sold", 200, 2500, [{ slug: "gold_ingot", quantity: 4 }]),
+    quest("weekly_cooked", 1, "cooked", 48, 3500, [{ slug: "gold_ingot", quantity: 4 }], "cooking"),
+
+    quest("weekly_taps_hard", 2, "taps", 20000, 8000, [{ slug: "diamond", quantity: 2 }]),
+    quest("weekly_ores", 2, "ores", 200, 9000, [{ slug: "diamond", quantity: 3 }]),
+    quest("weekly_coins", 2, "coins", 25000, 7000, [{ slug: "emerald", quantity: 4 }]),
+    quest("weekly_brewed", 2, "brewed", 15, 9000, [{ slug: "golden_apple", quantity: 2 }], "brewing"),
+];
+
 // Ланцюжок постійних квестів одного лічильника: [ціль, монети, предмети]
 const chain = (metric, steps) => steps.map(([target, coins, items = []]) => quest(`${metric}_${target}`, null, metric, target, coins, items));
 
@@ -58,7 +79,11 @@ export const PERMANENT_QUESTS = [
 export const dailyCoins = (quest, level) => quest.coins * (1 + level);
 
 const DAILY_XP = [10, 25, 60];
+const WEEKLY_XP = [80, 180, 400];
 const MIN_QUEST_XP = 10;
 const COINS_PER_QUEST_XP = 50;
 
-export const questXp = quest => (quest.tier === null ? Math.max(MIN_QUEST_XP, Math.round(quest.coins / COINS_PER_QUEST_XP)) : DAILY_XP[quest.tier]);
+export const questXp = quest => {
+    if (quest.tier === null) return Math.max(MIN_QUEST_XP, Math.round(quest.coins / COINS_PER_QUEST_XP));
+    return (quest.id.startsWith("weekly_") ? WEEKLY_XP : DAILY_XP)[quest.tier];
+};

@@ -1,134 +1,37 @@
 import blockService from "../services/block.service.js";
+import { handle } from "../utils/http.js";
 
-async function addTaps(req, res) {
-  try {
+const BLOCK_UNAVAILABLE = { success: false, message: "Цей блок недоступний", status: 400 };
+// Slug каталогу: малі латинські літери, цифри й підкреслення
+const SLUG = /^[a-z0-9_]{1,64}$/;
 
-    if (!req.body) return res.status(400).json({ success: false, message: "Цей блок недоступний" });
+export const isSlug = value => typeof value === "string" && SLUG.test(value);
 
-    if (!req.user) return res.status(400).json({ success: false, message: "Користувача не знайдено" });
+// POST /api/block/tap
+const addTaps = handle(req => {
+  const { slug, count } = req.body ?? {};
+  if (!isSlug(slug)) return BLOCK_UNAVAILABLE;
+  return blockService.addTaps(req.user._id, slug, count);
+});
 
-    // Витягуємо з тіла запиту telegramId та slug предмета
-    const { slug, count } = req.body;
+// POST /api/block/buy. Рядок перевіряється до запиту в базу: об'єкт замість slug знайшов би довільний блок
+const buyBlock = handle(req => {
+  const { slug } = req.body ?? {};
+  if (!isSlug(slug)) return BLOCK_UNAVAILABLE;
+  return blockService.buyBlock(slug, req.user._id, req.tgUser);
+});
 
-    // Перевірка наявності slug предмета
-    if (!slug)
-      return res.status(400).json({ success: false, message: "Цей блок недоступний" });
-
-    const result = await blockService.addTaps(req.user._id, slug, count)
-
-    // Повертаємо успішну відповідь з повідомленням
-    return res.status(result.status).json(result);
-
-  } catch (error) {
-    // Виводимо помилку в консоль і повертаємо 500 статус сервера
-    console.error(error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-}
-
-async function buyBlock(req, res) {
-  try {
-    if (!req.body) return res.status(400).json({ success: false, message: "Цей блок недоступний" });
-
-    // Витягуємо з тіла запиту slug предмета
-    const { slug } = req.body;
-    const userId = req.user._id;
-
-    // Перевірка наявності userId
-    if (!userId)
-      return res.status(400).json({ success: false, message: "Користувача не знайдено" });
-
-    // Перевірка наявності slug предмета
-    if (!slug)
-      return res.status(400).json({ success: false, message: "Цей блок недоступний" });
-
-    const result = await blockService.buyBlock(slug, userId, req.tgUser);
-
-    // Повертаємо успішну відповідь з повідомленням
-    return res.status(result.status).json(result);
-  } catch (error) {
-    // Виводимо помилку в консоль і повертаємо 500 статус сервера
-    console.error(error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-}
 // GET /api/block/all
-async function getAllBlocks(req, res) {
-  try {
-
-    const result = await blockService.getAllBlocks();
-    res.status(result.status).json(result);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-}
+const getAllBlocks = handle(() => blockService.getAllBlocks(), { needsUser: false });
 
 // GET /api/block/all-taps
-async function getBlocksToTap(req, res) {
-  try {
-    const result = await blockService.getBlocksToTap();
-    res.status(result.status).json(result);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-}
+const getBlocksToTap = handle(() => blockService.getBlocksToTap(), { needsUser: false });
 
 // GET /api/block/:slug
-async function getBlockBySlug(req, res) {
-  try {
+const getBlockBySlug = handle(req => (isSlug(req.params.slug) ? blockService.getBlockBySlug(req.params.slug) : { ...BLOCK_UNAVAILABLE, status: 404 }), { needsUser: false });
 
-    if (!req.params) return res.status(400).json({ success: false, message: "Цей блок недоступний" });
+const getFirst = handle(req => blockService.getFirst(req.user._id));
 
-    const { slug } = req.params;
-    if (!slug) return res.status(400).json({ success: false, message: "Цей блок недоступний" });
-
-    const result = await blockService.getBlockBySlug(slug);
-    res.status(result.status).json(result);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-}
-
-async function getFirst(req, res) {
-  try {
-
-    if (!req.user) return res.status(400).json({ success: false, message: "Користувача не знайдено" });
-
-
-
-    const result = await blockService.getFirst(req.user._id)
-    // Повертаємо успішну відповідь з повідомленням
-    return res.status(result.status).json(result);
-
-  } catch (error) {
-    // Виводимо помилку в консоль і повертаємо 500 статус сервера
-    console.error(error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-}
-
-async function getUserBlocks(req, res) {
-  try {
-
-    if (!req.user) return res.status(400).json({ success: false, message: "Користувача не знайдено" });
-
-
-
-    const result = await blockService.getUserBlocks(req.user._id)
-
-    // Повертаємо успішну відповідь з повідомленням
-    return res.status(result.status).json(result);
-
-  } catch (error) {
-    // Виводимо помилку в консоль і повертаємо 500 статус сервера
-    console.error(error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-}
-
-
+const getUserBlocks = handle(req => blockService.getUserBlocks(req.user._id));
 
 export { addTaps, buyBlock, getAllBlocks, getBlockBySlug, getFirst, getUserBlocks, getBlocksToTap };

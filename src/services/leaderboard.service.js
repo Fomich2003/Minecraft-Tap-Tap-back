@@ -10,6 +10,8 @@ const BOSS_KILLS = { $add: BOSS_SLUGS.map(slug => counter(`mobKills.${slug}`)) }
 
 // Рівень досвіду залежить лише від xpTotal, тому досвід точніше впорядковує гравців одного рівня
 const SCORES = { level: counter("xpTotal"), coins: counter("balance"), bosses: BOSS_KILLS };
+// Таблиці за простим полем читаються індексом, а не переглядом усіх гравців
+const FIELDS = { level: "xpTotal", coins: "balance" };
 
 // Telegram id сюди не потрапляє: таблицю бачать усі гравці
 const describe = (row, rank) => ({
@@ -33,11 +35,13 @@ class LeaderboardService {
     async top(user, metric) {
         if (!Object.hasOwn(SCORES, metric)) return { success: false, status: 400, message: "Некоректна таблиця" };
         const score = SCORES[metric];
+        const field = FIELDS[metric] ?? null;
+        const filter = field ? { [field]: { $gt: 0 } } : { $expr: { $gt: [score, 0] } };
         const [rows, [own]] = await Promise.all([
-            User.leaderboardRows({ $expr: { $gt: [score, 0] } }, score, BOSS_KILLS, LIMIT),
+            User.leaderboardRows(filter, score, BOSS_KILLS, LIMIT, field),
             User.leaderboardRows({ _id: user._id }, score, BOSS_KILLS, 1),
         ]);
-        const rank = own.score > 0 ? await User.countAbove(score, own.score) + 1 : null;
+        const rank = own.score > 0 ? await User.countAbove(score, own.score, field) + 1 : null;
         return { success: true, status: 200, metric, players: rankRows(rows, user._id), me: { ...describe(own, rank), me: true } };
     }
 }

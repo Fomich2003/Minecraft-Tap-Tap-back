@@ -15,40 +15,25 @@ const LANGUAGE_CODE = /^[A-Za-z]{2,8}(-[A-Za-z0-9]{1,8})*$/;
 class UserService {
 
     async getUserById(userId) {
-        try {
-            const user = await User.findById(userId)
-
-            if (!user) return { success: false, message: "Користувача не знайдено", status: 404 };
-
-            return { success: true, user, status: 200 };
-
-        } catch (error) {
-            return { success: false, message: error.message, status: 500 };
-        }
+        const user = await User.findById(userId)
+        if (!user) return { success: false, message: "Користувача не знайдено", status: 404 };
+        return { success: true, user, status: 200 };
     }
 
     async claimAward(userId) {
-        try {
-            const current = await User.findById(userId)
-            if (!current) return { success: false, message: "Користувача не знайдено", status: 404 };
-            const updatedUser = await User.claimAward(userId, dailyAward(current.tapLevel ?? 0))
-            if (updatedUser) {
-                await questService.track(updatedUser, { awards: 1 });
-                const loot = rollDailyLoot(levelFromXp(current.xpTotal));
-                const { itemBySlug } = await catalogService.get();
-                await Inventory.addItems(userId, loot.map(({ slug, quantity }) => ({ item: itemBySlug.get(slug), quantity })).filter(entry => entry.item));
-                const inventory = await Inventory.findByUserId(userId);
-                const card = await cardService.grantDaily(current);
-                return { success: true, user: updatedUser, status: 200, message: "Нагороду отримано", loot, inventory, card };
-            }
+        const current = await User.findById(userId)
+        if (!current) return { success: false, message: "Користувача не знайдено", status: 404 };
+        const updatedUser = await User.claimAward(userId, dailyAward(current.tapLevel ?? 0))
+        if (!updatedUser) return { success: false, user: current, status: 400, message: "Нагорода ще не готова" };
 
-            const user = await User.findById(userId)
-            if (!user) return { success: false, message: "Користувача не знайдено", status: 404 };
-
-            return { success: false, user, status: 400, message: "Нагорода ще не готова" };
-        } catch (error) {
-            return { success: false, message: error.message, status: 500 };
-        }
+        await questService.track(updatedUser, { awards: 1 });
+        const loot = rollDailyLoot(levelFromXp(current.xpTotal));
+        const { itemBySlug } = await catalogService.get();
+        await Inventory.ensureExists(userId);
+        await Inventory.addItems(userId, loot.map(({ slug, quantity }) => ({ item: itemBySlug.get(slug), quantity })).filter(entry => entry.item));
+        const inventory = await Inventory.findByUserId(userId);
+        const card = await cardService.grantDaily(current);
+        return { success: true, user: updatedUser, status: 200, message: "Нагороду отримано", loot, inventory, card };
     }
 
     // Скидає всі монети і назавжди додає монети за тап на всіх блоках. Інвентар не змінюється.

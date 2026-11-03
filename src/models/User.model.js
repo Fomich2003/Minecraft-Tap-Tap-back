@@ -47,6 +47,11 @@ const UserSchema = new mongoose.Schema({
     type: Number,
     default: 120
   },
+  // Номер наступного тапу гравця: від нього залежить, які удари критичні
+  tapCount: {
+    type: Number,
+    default: 0
+  },
   // Скільки тапів уже зроблено по блоку до наступного дропа
   tapProgress: {
     type: Map,
@@ -133,6 +138,14 @@ const UserSchema = new mongoose.Schema({
     progress: { type: Map, of: Number, default: {} },
     claimed: [String]
   },
+  // Тижневі квести: як щоденні, але набір і лічильники живуть від понеділка до понеділка (UTC)
+  weekly: {
+    week: { type: String, default: null },
+    ids: [String],
+    level: { type: Number, default: 0 },
+    progress: { type: Map, of: Number, default: {} },
+    claimed: [String]
+  },
   // Мова, обрана в грі. Її читає бот, який не бачить налаштувань клієнта
   language: {
     type: String,
@@ -153,5 +166,9 @@ const UserSchema = new mongoose.Schema({
     default: 0
   }
 }, { timestamps: true });
+
+// Таблиця лідерів сортує за досвідом і балансом
+UserSchema.index({ xpTotal: -1, _id: 1 });
+UserSchema.index({ balance: -1, _id: 1 });
 
 export default mongoose.model("User", UserSchema);

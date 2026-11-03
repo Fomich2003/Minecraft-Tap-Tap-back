@@ -35,31 +35,3 @@ async function startCMD(ctx) {
 
 export default startCMD
 export { GAME_URL, PLAY_LABEL }
-
-
-// const exUser = await User.findByTelegramId(userInfo.id);
-// let isNewUser = false;
-
-// if (!exUser) {
-//     isNewUser = true;
-//     const block = await ItemModel.findOne({ slug: "oak_log" })
-//     const createdUser = await User.create({
-//         telegramId: userInfo.id,
-//         username: userInfo.username,
-//         tapBlocks: [block._id]
-//     });
-//     await Inventory.create(createdUser._id)
-// }
-
-// ctx.reply("click", {
-//     reply_markup: {
-//         inline_keyboard: [[
-//             {
-//                 text: `${isNewUser ? `Hello new User ${userInfo.username}` : "Hello"} 🚀 Open WebApp`,
-//                 web_app: {
-//                     url: "https://animal.fomka.online"
-//                 }
-//             }
-//         ]]
-//     }
-// });

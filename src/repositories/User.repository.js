@@ -74,26 +74,26 @@ class UserRepository {
     return await UserModel.updateOne({ _id: userId }, { $inc: { referrals: 1, balance: coins } });
   }
 
-  async leaderboardRows(filter, score, bossKills, limit) {
-    return await UserModel.aggregate([
-      { $match: filter },
-      {
-        $project: {
-          firstName: 1,
-          username: 1,
-          balance: { $ifNull: ["$balance", 0] },
-          xpTotal: { $ifNull: ["$xpTotal", 0] },
-          bosses: bossKills,
-          score,
-        }
-      },
-      { $sort: { score: -1, _id: 1 } },
-      { $limit: limit },
-    ]);
+  // Для простого поля (досвід, баланс) сортування йде до проєкції, щоб працював індекс поля
+  async leaderboardRows(filter, score, bossKills, limit, field = null) {
+    const project = {
+      $project: {
+        firstName: 1,
+        username: 1,
+        balance: { $ifNull: ["$balance", 0] },
+        xpTotal: { $ifNull: ["$xpTotal", 0] },
+        bosses: bossKills,
+        score,
+      }
+    };
+    const stages = field
+      ? [{ $match: filter }, { $sort: { [field]: -1, _id: 1 } }, { $limit: limit }, project]
+      : [{ $match: filter }, project, { $sort: { score: -1, _id: 1 } }, { $limit: limit }];
+    return await UserModel.aggregate(stages);
   }
 
-  async countAbove(score, value) {
-    return await UserModel.countDocuments({ $expr: { $gt: [score, value] } });
+  async countAbove(score, value, field = null) {
+    return await UserModel.countDocuments(field ? { [field]: { $gt: value } } : { $expr: { $gt: [score, value] } });
   }
 
   async incrementBalance(userId, count) {
@@ -243,11 +243,16 @@ class UserRepository {
     return await UserModel.updateOne({ _id: userId, "daily.day": { $ne: day } }, { $set: { daily } });
   }
 
+  async startWeekly(userId, week, weekly) {
+    return await UserModel.updateOne({ _id: userId, "weekly.week": { $ne: week } }, { $set: { weekly } });
+  }
+
   async addQuestProgress(userId, increments) {
     const $inc = {};
     for (const [metric, value] of Object.entries(increments)) {
       $inc[`questStats.${metric}`] = value;
       $inc[`daily.progress.${metric}`] = value;
+      $inc[`weekly.progress.${metric}`] = value;
     }
     return await UserModel.updateOne({ _id: userId }, { $inc });
   }
@@ -256,6 +261,14 @@ class UserRepository {
     return await UserModel.findOneAndUpdate(
       { _id: userId, "daily.day": day, "daily.ids": id, "daily.claimed": { $ne: id }, ...progressFilter },
       { $addToSet: { "daily.claimed": id }, $inc: { balance: coins, xp, xpTotal: xp, "questStats.dailies": 1 } },
+      { new: true }
+    );
+  }
+
+  async claimWeeklyQuest(userId, week, id, progressFilter, coins, xp) {
+    return await UserModel.findOneAndUpdate(
+      { _id: userId, "weekly.week": week, "weekly.ids": id, "weekly.claimed": { $ne: id }, ...progressFilter },
+      { $addToSet: { "weekly.claimed": id }, $inc: { balance: coins, xp, xpTotal: xp } },
       { new: true }
     );
   }
@@ -269,15 +282,15 @@ class UserRepository {
   }
 
   async findTapState(userId) {
-    return await UserModel.findById(userId).select("lastTapAt tapTokens tapProgress tapLevel");
+    return await UserModel.findById(userId).select("lastTapAt tapTokens tapProgress tapLevel tapCount");
   }
 
   // Умови на lastTapAt і tapLevel відкидають запис, якщо паралельний запит встиг змінити лічильники або рівень
-  async applyTaps(userId, lastTapAt, tapLevel, { coins, tokens, now, slug, progress }) {
+  async applyTaps(userId, lastTapAt, tapLevel, { coins, taps, tokens, now, slug, progress }) {
     return await UserModel.findOneAndUpdate(
       { _id: userId, lastTapAt, tapLevel: tapLevelFilter(tapLevel) },
       {
-        $inc: { balance: coins },
+        $inc: { balance: coins, tapCount: taps },
         $set: { lastTapAt: now, tapTokens: tokens, [`tapProgress.${slug}`]: progress }
       },
       { new: true }

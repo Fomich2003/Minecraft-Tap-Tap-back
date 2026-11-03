@@ -122,7 +122,8 @@ class MobService {
 
     // Моби йдуть через той самий ліміт швидкості, що й блоки: окремого шляху до монет не існує
     async hit(userId, slug, count) {
-        const requested = Number(count);
+        // Лише число: Number([3]) чи Number("3") теж дали б 3, але клієнт гри таких не шле
+        const requested = typeof count === "number" ? count : NaN;
         if (!Number.isSafeInteger(requested) || requested < 1) return fail(400, "Некоректна кількість тапів");
 
         const user = await User.findById(userId);
@@ -176,7 +177,7 @@ class MobService {
             success: true, status: 200, user: updatedUser, inventory, loadout, acceptedTaps: applied.taps,
             drops: drops.map(({ item, quantity }) => ({ slug: item.slug, quantity })), missed,
             toolBroken: toolBroken ? sword.slug : null, message: `+${applied.coins}`, questsReady: questService.readyCount(updatedUser),
-            bossDefeated: won ? { slug, coins: bonusCoins } : null, card,
+            bossDefeated: won ? { slug, coins: bonusCoins } : null, card, crits: applied.crits,
         };
     }
 }

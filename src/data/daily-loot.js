@@ -13,10 +13,13 @@ const LEVELS_PER_POOL = 15;
 const pick = list => list[Math.floor(Math.random() * list.length)];
 const between = (min, max) => min + Math.floor(Math.random() * (max - min + 1));
 
+// Однаковий предмет з двох кидків стає одним записом: інакше скриня показувала б його двічі
 export function rollDailyLoot(xpLevel) {
     const unlocked = Math.min(POOLS.length, 1 + Math.floor(xpLevel / LEVELS_PER_POOL));
-    return Array.from({ length: ROLLS }, () => {
+    const loot = new Map();
+    for (let roll = 0; roll < ROLLS; roll += 1) {
         const [slug, min, max] = pick(POOLS[Math.floor(Math.random() * unlocked)]);
-        return { slug, quantity: between(min, max) };
-    });
+        loot.set(slug, (loot.get(slug) ?? 0) + between(min, max));
+    }
+    return [...loot].map(([slug, quantity]) => ({ slug, quantity }));
 }

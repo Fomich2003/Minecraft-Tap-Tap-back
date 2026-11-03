@@ -14,7 +14,7 @@
     "copy:icons": "node src/scripts/copy-icons-to-client.js",
     "sync:item-icons": "node src/scripts/sync-item-icons.js",
     "verify:item-icons": "node src/scripts/verify-item-icons.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test --test-concurrency=1 \"test/*.test.js\""
   },
   "keywords": [],
   "author": "",

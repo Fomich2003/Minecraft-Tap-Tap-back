@@ -1,4 +1,5 @@
 import { cardCoinBonus, cardDropBonus, cardXp, deckBonus, rollCard } from "../data/cards.js";
+import { batchPower } from "../data/critical.js";
 import { baseDropChance, dropChance, dropsPerBlock, toPercent } from "../data/drops.js";
 import { blockXp, levelFromXp } from "../data/experience.js";
 import { locationOf } from "../data/locations.js";
@@ -61,7 +62,8 @@ export function toolWear(tool, brokenBlocks, effects) {
 
 class BlockService {
     async addTaps(userId, slug, count) {
-        const requested = Number(count);
+        // Лише число: Number([3]) чи Number("3") теж дали б 3, але клієнт гри таких не шле
+        const requested = typeof count === "number" ? count : NaN;
         if (!Number.isSafeInteger(requested) || requested < 1) {
             return { success: false, message: "Некоректна кількість тапів", status: 400 };
         }
@@ -112,6 +114,7 @@ class BlockService {
             success: true, status: 200, user: updatedUser, inventory, loadout, acceptedTaps: applied.taps,
             drops: drops.map(({ item, quantity }) => ({ slug: item.slug, quantity })), missed,
             toolBroken: toolBroken ? tool.slug : null, message: `+${applied.coins}`, questsReady: questService.readyCount(updatedUser), card,
+            crits: applied.crits,
         };
     }
 
@@ -126,13 +129,15 @@ class BlockService {
             if (taps < 1) return null;
 
             const idle = user.lastTapAt && now - user.lastTapAt.getTime() > PROGRESS_RESET_MS;
-            const progress = (idle && !keepProgress ? 0 : user.tapProgress?.get(slug) ?? 0) + taps * power;
             const perBlock = Math.max(1, tapItem.tapsToBreak ?? 1);
+            // Номер тапу читається разом з lastTapAt: умова запису гарантує, що інший запит його не зсунув
+            const hits = batchPower(String(userId), user.tapCount ?? 0, taps, power, perBlock);
+            const progress = (idle && !keepProgress ? 0 : user.tapProgress?.get(slug) ?? 0) + hits.total;
             const coins = taps * coinsWithEffects(coinsPerTap(user.tapLevel ?? 0), effects, coinBonus);
             const updated = await User.applyTaps(userId, user.lastTapAt, user.tapLevel ?? 0, {
-                coins, tokens: tokens - taps, now: new Date(now), slug, progress: progress % perBlock,
+                coins, taps, tokens: tokens - taps, now: new Date(now), slug, progress: progress % perBlock,
             });
-            if (updated) return { taps, coins, brokenBlocks: Math.floor(progress / perBlock) };
+            if (updated) return { taps, coins, crits: hits.crits, brokenBlocks: Math.floor(progress / perBlock) };
             await new Promise(resolve => setTimeout(resolve, Math.random() * 20 * (attempt + 1)));
         }
         return null;

@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { ownedCount } from "../data/cards.js";
 import { describeXp } from "../data/experience.js";
-import { DAILY_QUESTS, DAILY_TIERS, PERMANENT_QUESTS, dailyCoins, questXp } from "../data/quests.js";
+import { DAILY_QUESTS, DAILY_TIERS, PERMANENT_QUESTS, WEEKLY_QUESTS, WEEKLY_TIERS, dailyCoins, questXp } from "../data/quests.js";
 import Inventory from "../repositories/Inventory.repository.js";
 import User from "../repositories/User.repository.js";
 import catalogService from "./catalog.service.js";
@@ -11,6 +11,20 @@ const fail = (status, message) => ({ success: false, status, message });
 
 const dailyById = new Map(DAILY_QUESTS.map(quest => [quest.id, quest]));
 const permanentById = new Map(PERMANENT_QUESTS.map(quest => [quest.id, quest]));
+const weeklyById = new Map(WEEKLY_QUESTS.map(quest => [quest.id, quest]));
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// Тиждень починається в понеділок 00:00 UTC. Ключ — дата цього понеділка
+function weekStart(now = Date.now()) {
+    const date = new Date(now);
+    const sinceMonday = (date.getUTCDay() + 6) % 7;
+    return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() - sinceMonday);
+}
+
+export const currentWeek = (now = Date.now()) => new Date(weekStart(now)).toISOString().slice(0, 10);
+
+const nextWeeklyReset = (now = Date.now()) => new Date(weekStart(now) + 7 * DAY_MS);
 
 // Доба квестів рахується за UTC: нові завдання з'являються для всіх одночасно
 const currentDay = (now = Date.now()) => new Date(now).toISOString().slice(0, 10);
@@ -37,19 +51,28 @@ function canDo(quest, user) {
     return true;
 }
 
-// Набір залежить лише від дня й гравця, а зберігається, щоб покупка верстака вдень його не змінила
-function rollDaily(user, day) {
-    const hash = crypto.createHash("sha1").update(`${day}:${user._id}`).digest();
-    const ids = DAILY_TIERS.map(tier => {
-        const pool = DAILY_QUESTS.filter(quest => quest.tier === tier && canDo(quest, user));
+// Набір залежить лише від періоду й гравця, а зберігається, щоб покупка верстака посеред періоду його не змінила
+function rollSet(user, key, tiers, quests) {
+    const hash = crypto.createHash("sha1").update(`${key}:${user._id}`).digest();
+    return tiers.map(tier => {
+        const pool = quests.filter(quest => quest.tier === tier && canDo(quest, user));
         return pool[hash[tier] % pool.length].id;
     });
-    return { day, ids, level: user.tapLevel ?? 0, progress: {}, claimed: [] };
+}
+
+function rollDaily(user, day) {
+    return { day, ids: rollSet(user, day, DAILY_TIERS, DAILY_QUESTS), level: user.tapLevel ?? 0, progress: {}, claimed: [] };
+}
+
+function rollWeekly(user, week) {
+    return { week, ids: rollSet(user, `week:${week}`, WEEKLY_TIERS, WEEKLY_QUESTS), level: user.tapLevel ?? 0, progress: {}, claimed: [] };
 }
 
 const permanentProgress = (quest, user) => STATE_METRICS[quest.metric]?.value(user) ?? readCounter(user.questStats, quest.metric);
 
 const isToday = user => user.daily?.day === currentDay();
+
+const isThisWeek = user => user.weekly?.week === currentWeek();
 
 function describe(quest, progress, claimed, coins) {
     return {
@@ -66,14 +89,28 @@ function describeDaily(user) {
     }).filter(Boolean);
 }
 
+function describeWeekly(user) {
+    if (!isThisWeek(user)) return [];
+    return user.weekly.ids.map(id => {
+        const quest = weeklyById.get(id);
+        return quest && describe(quest, readCounter(user.weekly.progress, quest.metric), user.weekly.claimed.includes(id), dailyCoins(quest, user.weekly.level));
+    }).filter(Boolean);
+}
+
 function describePermanent(user) {
     return PERMANENT_QUESTS.map(quest => describe(quest, permanentProgress(quest, user), Boolean(user.questsClaimed?.includes(quest.id)), quest.coins));
 }
 
 class QuestService {
+    // Новий період починається до першого лічильника: інакше прогрес минулого тижня зарахувався б у новий
+    async startPeriods(user) {
+        if (!isToday(user)) await User.startDaily(user._id, currentDay(), rollDaily(user, currentDay()));
+        if (!isThisWeek(user)) await User.startWeekly(user._id, currentWeek(), rollWeekly(user, currentWeek()));
+    }
+
     async ensureDaily(user) {
-        if (isToday(user)) return user;
-        await User.startDaily(user._id, currentDay(), rollDaily(user, currentDay()));
+        if (isToday(user) && isThisWeek(user)) return user;
+        await this.startPeriods(user);
         return await User.findById(user._id);
     }
 
@@ -82,7 +119,7 @@ class QuestService {
         const entries = Object.entries(increments).filter(([, value]) => value > 0);
         if (!entries.length) return;
         try {
-            if (!isToday(user)) await User.startDaily(user._id, currentDay(), rollDaily(user, currentDay()));
+            await this.startPeriods(user);
             await User.addQuestProgress(user._id, Object.fromEntries(entries));
         } catch (error) {
             console.error("[quests]", error.message);
@@ -90,37 +127,42 @@ class QuestService {
     }
 
     readyCount(user) {
-        return [...describeDaily(user), ...describePermanent(user)].filter(quest => quest.ready).length;
+        return [...describeDaily(user), ...describeWeekly(user), ...describePermanent(user)].filter(quest => quest.ready).length;
     }
 
     async overview(user) {
         const fresh = await this.ensureDaily(user);
         const daily = describeDaily(fresh);
+        const weekly = describeWeekly(fresh);
         const permanent = describePermanent(fresh);
         return {
-            success: true, status: 200, daily, permanent, resetsAt: nextReset(),
-            questsReady: [...daily, ...permanent].filter(quest => quest.ready).length,
+            success: true, status: 200, daily, weekly, permanent, resetsAt: nextReset(), weeklyResetsAt: nextWeeklyReset(),
+            questsReady: [...daily, ...weekly, ...permanent].filter(quest => quest.ready).length,
         };
     }
 
     async claim(user, id) {
+        if (typeof id !== "string") return fail(404, "Квест не знайдено");
         const fresh = await this.ensureDaily(user);
-        const isDaily = fresh.daily.ids.includes(id);
-        const quest = isDaily ? dailyById.get(id) : permanentById.get(id);
+        const kind = fresh.daily.ids.includes(id) ? "daily" : fresh.weekly?.ids?.includes(id) ? "weekly" : "permanent";
+        const quest = { daily: dailyById, weekly: weeklyById, permanent: permanentById }[kind].get(id);
         if (!quest) return fail(404, "Квест не знайдено");
 
-        const coins = isDaily ? dailyCoins(quest, fresh.daily.level) : quest.coins;
-        const progressFilter = isDaily || !STATE_METRICS[quest.metric]
-            ? { [`${isDaily ? "daily.progress" : "questStats"}.${quest.metric}`]: { $gte: quest.target } }
+        const coins = kind === "permanent" ? quest.coins : dailyCoins(quest, fresh[kind].level);
+        const progressFilter = kind !== "permanent" || !STATE_METRICS[quest.metric]
+            ? { [`${kind === "permanent" ? "questStats" : `${kind}.progress`}.${quest.metric}`]: { $gte: quest.target } }
             : STATE_METRICS[quest.metric].filter(quest.target);
 
         // Умови в самому запиті не дають забрати нагороду двічі паралельними запитами
-        const updated = isDaily
-            ? await User.claimDailyQuest(user._id, currentDay(), id, progressFilter, coins, questXp(quest))
-            : await User.claimPermanentQuest(user._id, id, progressFilter, coins, questXp(quest));
+        const claims = {
+            daily: () => User.claimDailyQuest(user._id, currentDay(), id, progressFilter, coins, questXp(quest)),
+            weekly: () => User.claimWeeklyQuest(user._id, currentWeek(), id, progressFilter, coins, questXp(quest)),
+            permanent: () => User.claimPermanentQuest(user._id, id, progressFilter, coins, questXp(quest)),
+        };
+        const updated = await claims[kind]();
 
         if (!updated) {
-            const claimed = isDaily ? fresh.daily.claimed.includes(id) : fresh.questsClaimed?.includes(id);
+            const claimed = kind === "permanent" ? fresh.questsClaimed?.includes(id) : fresh[kind].claimed.includes(id);
             return fail(400, claimed ? "Нагороду вже забрано" : "Квест ще не виконано");
         }
 
