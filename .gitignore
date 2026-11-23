@@ -1,3 +1,7 @@
 .env
 /node_modules
 /temp
+
+# VPS deploy script and its log
+deploy.sh
+deploy.log

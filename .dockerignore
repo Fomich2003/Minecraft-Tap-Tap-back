@@ -15,3 +15,6 @@ test
 Dockerfile
 docker-compose.yml
 .dockerignore
+
+deploy.sh
+deploy.log
