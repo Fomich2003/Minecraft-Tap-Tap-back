@@ -1,0 +1,49 @@
+# Бекенд: https://api-tap-tap.fomka.online → nginx на хості → 127.0.0.1:6788 → цей контейнер
+#
+# Запуск (з теки, де лежить цей файл):   docker compose up -d --build
+# Логи:                                   docker compose logs -f
+# Зупинка:                                docker compose down
+
+name: tap-tap-server
+
+services:
+  server:
+    build: .
+    image: tap-tap-server:latest
+    container_name: tap-tap-server
+    restart: unless-stopped
+
+    # tini як PID 1: передає SIGTERM у node, інакше зупинка чекає 10 с і вбиває процес
+    init: true
+
+    # MODE, PORT, DB_URL, BOT_TOKEN — з .env поруч із цим файлом (chmod 600, в образ не потрапляє)
+    env_file: .env
+
+    # Тільки localhost: назовні API видно лише через nginx.
+    # Права частина має збігатися з PORT у .env (зараз 6788)
+    ports:
+      - "127.0.0.1:6788:6788"
+
+    # Сервер нічого не пише на диск, тож файлова система контейнера тільки для читання
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+    # VPS: 1 CPU, 1.6 ГБ RAM. Ліміт захищає решту системи, якщо щось піде не так.
+    # pids саме тут, а не окремим pids_limit: Compose не дозволяє задавати обидва
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          pids: 256
+
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:$${PORT}/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s

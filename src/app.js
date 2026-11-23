@@ -22,8 +22,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export function createApp({ ipLimit = 600 } = {}) {
     const app = express();
 
-    // ngrok приходить з localhost і передає адресу гравця в X-Forwarded-For: довіряємо лише локальному проксі
-    app.set("trust proxy", "loopback");
+    // Адресу гравця в X-Forwarded-For передає проксі перед застосунком: ngrok приходить з localhost,
+    // а nginx на VPS — через шлюз мережі Docker (172.x). Без "uniquelocal" усі гравці мали б адресу
+    // шлюзу і ділили б один ліміт ipLimiter на всіх. Публічним адресам не довіряємо: підробити
+    // X-Forwarded-For ззовні не вийде, бо порт контейнера опубліковано лише на 127.0.0.1
+    app.set("trust proxy", ["loopback", "uniquelocal"]);
     app.disable("x-powered-by");
 
     // Ліміт на адресу ловить грубий перебір ще до перевірки підпису

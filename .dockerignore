@@ -1,0 +1,17 @@
+# Секрети в образ не потрапляють: змінні передає docker compose (env_file)
+.env
+.env.*
+
+node_modules
+npm-debug.log*
+*.log
+
+# Інструменти імпорту каталогу та тести: для роботи сервера не потрібні (temp/ — 130+ МБ із client.jar)
+temp
+test
+
+.git
+.vscode
+Dockerfile
+docker-compose.yml
+.dockerignore
